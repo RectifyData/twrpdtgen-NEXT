@@ -16,7 +16,9 @@ verified bootable recovery or a flashable image.**
 The selected stock recovery payload is extracted once and reused directly.
 
 - **recovery/stock-root/** contains the complete expanded selected recovery
-  payload for audit and for recovering extra device files.
+  payload in the generation workspace for audit and for recovering extra device
+  files. Cloud/export ZIPs omit it by default unless stock-root inclusion was
+  explicitly requested.
 - **recovery/root/** is the build overlay consumed by Android/TWRP.
 - **recovery/ramdisk-manifest.json** records the selected image or fragment and
   the entries copied into both trees.
