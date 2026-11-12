@@ -84,6 +84,26 @@ class CloudSliceTests(unittest.TestCase):
             self.assertEqual(output.read_bytes(), recovery)
             self.assertEqual(result.compression, "none")
 
+    def test_auto_mode_prefers_cp_for_modem(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            firmware = root / "firmware.zip"
+            output = root / "modem.bin"
+            make_firmware(
+                firmware,
+                [
+                    ("AP_TEST.tar.md5", make_tar([("modem.bin", b"ap-copy")])),
+                    ("CP_TEST.tar.md5", make_tar([("modem.bin", b"cp-copy")])),
+                ],
+            )
+            result = slice_firmware(
+                firmware,
+                "modem",
+                output=output,
+            )
+            self.assertEqual(output.read_bytes(), b"cp-copy")
+            self.assertEqual(result.package_member, "CP_TEST.tar.md5")
+
     def test_package_filter_avoids_wrong_duplicate(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
