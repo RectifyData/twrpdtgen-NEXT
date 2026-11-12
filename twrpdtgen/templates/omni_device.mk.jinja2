@@ -16,6 +16,9 @@ $(call inherit-product, vendor/twrp/config/common.mk)
 # Inherit from {{ device_info.codename }} device
 $(call inherit-product, device/{{ device_info.manufacturer }}/{{ device_info.codename }}/device.mk)
 
+# Include the generated device-specific recovery overlay in the recovery ramdisk.
+PRODUCT_COPY_FILES += $(call find-copy-subdir-files,*,device/{{ device_info.manufacturer }}/{{ device_info.codename }}/recovery/root,recovery/root)
+
 PRODUCT_DEVICE := {{ device_info.codename }}
 PRODUCT_NAME := {{ product_prefix }}_{{ device_info.codename }}
 {% if device_info.brand %}
