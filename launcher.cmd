@@ -25,14 +25,14 @@ set "RC=%ERRORLEVEL%"
 exit /b %RC%
 
 :find_python
-py -3 -c "import sys" >nul 2>&1
-if not errorlevel 1 (
-    set "PYTHON_CMD=py -3"
-    exit /b 0
-)
 python -c "import sys" >nul 2>&1
 if not errorlevel 1 (
     set "PYTHON_CMD=python"
+    exit /b 0
+)
+py -3 -c "import sys" >nul 2>&1
+if not errorlevel 1 (
+    set "PYTHON_CMD=py -3"
     exit /b 0
 )
 echo [twrpdtgen-NEXT] ERROR: Python 3 was not found. 1>&2
