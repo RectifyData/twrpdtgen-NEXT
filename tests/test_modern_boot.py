@@ -287,6 +287,21 @@ class ModernBootTests(unittest.TestCase):
                     "vendor_boot")
                 self.assertEqual(
                     len(info.ramdisk_roots), 2)
+                self.assertEqual(info.boot_header_version, "4")
+                self.assertEqual(info.init_boot_header_version, "4")
+                self.assertEqual(info.vendor_boot_header_version, "4")
+                self.assertEqual(info.kernel_offset, 0x10008000)
+                self.assertEqual(
+                    info.vendor_cmdline,
+                    "androidboot.hardware=test")
+                manifest = manager.manifest()
+                vendor = next(
+                    image for image in manifest["images"]
+                    if image["kind"] == "vendor_boot")
+                self.assertEqual(
+                    vendor["kernel_offset"], 0x10008000)
+                self.assertEqual(
+                    vendor["dtb_offset"], 0x11F00000)
                 export = manager.export(
                     temp / "extracted")
                 self.assertTrue(
