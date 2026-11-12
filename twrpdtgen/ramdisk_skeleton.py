@@ -142,22 +142,47 @@ def is_device_overlay_path(relative: str) -> bool:
     return False
 
 
+def _merge_report(target: RamdiskCopyReport, source: RamdiskCopyReport):
+    target.copied_files.extend(source.copied_files)
+    target.copied_symlinks.extend(source.copied_symlinks)
+    target.copied_dirs.extend(source.copied_dirs)
+    target.skipped_special.extend(source.skipped_special)
+
+
 def materialize_recovery_skeleton(
-        source: Path,
+        sources,
         stock_root: Path,
         build_root: Path,
         mode: str) -> dict:
-    """Persist exact recovery files and seed the build overlay."""
+    """Persist exact recovery files and seed the build overlay.
+
+    Multiple source roots are overlaid in the supplied order, matching the
+    effective ramdisk view used by the generator.
+    """
     if mode not in ("full", "minimal"):
         raise ValueError(f"Unknown recovery root mode: {mode}")
+    if isinstance(sources, (str, Path)):
+        sources = [Path(sources)]
+    else:
+        sources = [Path(source) for source in sources]
+    if not sources:
+        raise ValueError("No recovery ramdisk sources selected")
 
-    stock_report = copy_ramdisk_tree(source, stock_root)
-    overlay_report = copy_ramdisk_tree(
-        source,
-        build_root,
-        include=None if mode == "full" else is_device_overlay_path)
+    stock_report = RamdiskCopyReport()
+    overlay_report = RamdiskCopyReport()
+    for source in sources:
+        _merge_report(
+            stock_report,
+            copy_ramdisk_tree(source, stock_root))
+        _merge_report(
+            overlay_report,
+            copy_ramdisk_tree(
+                source,
+                build_root,
+                include=None if mode == "full" else is_device_overlay_path))
     return {
         "mode": mode,
+        "source_count": len(sources),
         "stock_root": "recovery/stock-root",
         "build_root": "recovery/root",
         "stock": stock_report.as_dict(),
