@@ -68,6 +68,13 @@ Parsed geometry is also written to **prebuilt/image-metadata.json**.
    decryption services before trusting recovery on a physical phone.
 6. Confirm the build target with the chosen branch's lunch list.
 
+{% if device_info.manufacturer == "samsung" and recovery_layout == "dedicated" %}
+7. Samsung dedicated-recovery devices may require a device-specific image
+   trailer, Odin tar packaging, or verified-boot handling. NEXT does not invent
+   those rules from the manufacturer name; compare the stock/known-good image
+   packaging before flashing.
+{% endif %}
+
 {% if skeleton == "omni" %}
 This legacy Omni skeleton should be used with a matching legacy manifest.
 {% else %}
