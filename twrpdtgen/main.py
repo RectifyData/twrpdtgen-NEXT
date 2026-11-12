@@ -111,8 +111,8 @@ def main():
     parser.add_argument(
         "--recovery-fragment",
         help=(
-            "vendor_boot v4 RECOVERY fragment name or numeric index; "
-            "required only when multiple recovery fragments exist"))
+            "vendor_boot fragment name or numeric index to use as the "
+            "recovery source when automatic selection is ambiguous"))
     parser.add_argument(
         "--recovery-root-mode",
         choices=("auto", "minimal", "full"),
