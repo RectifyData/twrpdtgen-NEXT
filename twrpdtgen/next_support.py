@@ -37,12 +37,38 @@ _DATE = re.compile(r"\d{4}-\d{2}-\d{2}\Z")
 
 
 def parse_partition_size(value: str) -> int:
-    """Parse bytes (decimal/hex); reject bogus or unaligned geometry."""
-    try:
-        result = int(value, 0)
-    except (ValueError, TypeError) as exc:
+    """Parse verified partition sizes and reject invalid/unaligned geometry.
+
+    Plain decimal and 0x-prefixed values are bytes. Binary KiB/MiB/GiB
+    suffixes are accepted for the Colab/CLI convenience fields.
+    """
+    if isinstance(value, bool) or value is None:
         raise ValueError(
-            "Partition size must be an integer byte count") from exc
+            "Partition size must be a byte count or KiB/MiB/GiB value")
+    text = str(value).strip()
+    match = re.fullmatch(
+        r"(0[xX][0-9a-fA-F]+|[0-9]+)\s*(KiB|MiB|GiB)?",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if match is None:
+        raise ValueError(
+            "Partition size must be bytes or a KiB/MiB/GiB value")
+    number, suffix = match.groups()
+    try:
+        base = 16 if number.lower().startswith("0x") else 10
+        result = int(number, base)
+    except ValueError as exc:
+        raise ValueError("Invalid partition size") from exc
+
+    if suffix:
+        scale = {
+            "kib": 1024,
+            "mib": 1024 ** 2,
+            "gib": 1024 ** 3,
+        }[suffix.lower()]
+        result *= scale
+
     if result <= 0 or result % 4096:
         raise ValueError(
             "Partition size must be positive and 4096-byte aligned")
