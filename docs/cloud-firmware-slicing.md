@@ -44,8 +44,16 @@ goal is **zero local full-firmware bandwidth**, not literally zero bytes.
 Open colab/cloud_firmware_slice.ipynb.
 
 The notebook exposes form fields for model, region/CSC, partition, optional
-exact firmware version, package override, and parallel download thread count.
-The final cell triggers a Colab browser download for only the extracted payload.
+exact firmware version, package override, parallel download thread count, TWRP
+skeleton, recovery layout, and recovery-root policy.
+
+It now has two modes:
+
+- **Generate TWRP device tree** — firmware download/decryption, remote image
+  slicing, normal twrpdtgen analysis/generation, ZIP packaging, then browser
+  download of only the final tree ZIP.
+- **Extract image only** — the original cloud-slice path that downloads only the
+  selected standalone image.
 
 Direct Colab link:
 
@@ -79,6 +87,68 @@ bash cloud-slice.sh fetch \
   --partition boot \
   -o /content/boot.img \
   --colab-download
+~~~
+
+## Full cloud firmware -> twrpdtgen workflow
+
+The notebook can now run the complete single-image twrpdtgen pipeline without
+requiring the extracted recovery image to be downloaded to the local PC first.
+
+Command-line equivalent:
+
+~~~bash
+python3 -m twrpdtgen.cloud_tree \
+  -m SM-A207F \
+  -r NEE \
+  --partition recovery \
+  --package AP \
+  --tree-output /content/twrp-tree \
+  --archive /content/twrp-device-tree.zip \
+  --colab-download
+~~~
+
+The flow is:
+
+~~~text
+Samsung FUS
+    -> cloud download/decryption
+    -> streamed Odin TAR.MD5 scan
+    -> recovery.img.lz4
+    -> cloud LZ4 decode
+    -> recovery.img
+    -> normal twrpdtgen DeviceTree analysis
+    -> generated <manufacturer>/<codename>/ tree
+    -> twrp-device-tree.zip
+    -> local browser download
+~~~
+
+The extracted image is temporary by default. Pass `--keep-image` to keep it
+inside the cloud workspace, or `--image-output PATH` to choose a persistent
+path. Pass `--keep-firmware` only when the full decrypted firmware ZIP is
+actually needed after generation.
+
+The full cloud command exposes the normal generator controls:
+
+- `--skeleton auto|omni|twrp-12.1|twrp-14.1`
+- `--recovery-layout auto|dedicated|boot|vendor_boot`
+- `--recovery-root-mode auto|minimal|full`
+- `--recovery-fragment`
+- verified boot/recovery/super/dynamic-group sizes
+- `--overwrite`
+
+The Colab setup cell uses `launcher.sh --setup-only`, so legacy recovery image
+parsing receives the same Linux host dependencies as the normal twrpdtgen
+launcher.
+
+The generated ZIP preserves the manufacturer/codename hierarchy, for example:
+
+~~~text
+samsung/
+└── a20s/
+    ├── AndroidProducts.mk
+    ├── BoardConfig.mk
+    ├── recovery/
+    └── ...
 ~~~
 
 ## Specific firmware version
@@ -231,10 +301,17 @@ For a normal boot.img request:
 
 ## Limitations
 
-This implementation extracts files that are direct members of Samsung Odin TAR
-packages. Asking for super returns super.img. It does not yet run a second
-lpunpack stage to extract system, vendor, product, or other logical partitions
-from inside super.img.
+The full cloud-tree command currently takes one recovery-bearing image as the
+primary twrpdtgen input. This works naturally for devices with a dedicated
+`recovery.img` and for other layouts where one supplied image is sufficient.
+Modern split-GKI layouts that require a coordinated `boot.img`,
+`init_boot.img`, and `vendor_boot.img` set still use the normal twrpdtgen
+multi-image CLI after those companion images are obtained.
+
+The slicer extracts files that are direct members of Samsung Odin TAR packages.
+Asking for super returns super.img. It does not yet run a second lpunpack stage
+to extract system, vendor, product, or other logical partitions from inside
+super.img.
 
 FUS availability is controlled by Samsung. A firmware version no longer served
 by Samsung cannot be recovered by NEXT itself.
