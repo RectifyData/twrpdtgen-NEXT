@@ -7,10 +7,14 @@ from __future__ import annotations
 from argparse import ArgumentParser
 from dataclasses import dataclass
 from pathlib import Path
+import os
 import shutil
+import stat
 import sys
 import tempfile
+import time
 from typing import Iterable, Optional
+import zipfile
 
 from twrpdtgen.cloud_slice import (
     CloudSliceError,
@@ -28,8 +32,32 @@ class CloudTreeResult:
     archive: Path
 
 
-def _archive_tree(tree: Path, archive: Path) -> Path:
-    """Create a ZIP containing the generated device-tree directory."""
+def _zip_symlink(
+        bundle: zipfile.ZipFile,
+        source: Path,
+        arcname: str) -> None:
+    """Store a POSIX symlink as a real ZIP symlink entry."""
+    st = source.lstat()
+    info = zipfile.ZipInfo(
+        arcname,
+        time.localtime(max(st.st_mtime, 315532800))[:6],
+    )
+    info.create_system = 3
+    info.compress_type = zipfile.ZIP_STORED
+    info.external_attr = (
+        (stat.S_IFLNK | stat.S_IMODE(st.st_mode)) << 16
+    )
+    info.external_attr |= 0x20
+    target = os.readlink(source)
+    bundle.writestr(info, target.encode("utf-8", errors="surrogateescape"))
+
+
+def _archive_tree(
+        tree: Path,
+        archive: Path,
+        *,
+        include_stock_root: bool = False) -> Path:
+    """Create a source-oriented ZIP while preserving Unix symlink metadata."""
     tree = Path(tree)
     archive = Path(archive)
     if not tree.is_dir():
@@ -37,18 +65,63 @@ def _archive_tree(tree: Path, archive: Path) -> Path:
     archive.parent.mkdir(parents=True, exist_ok=True)
     if archive.suffix.lower() != ".zip":
         archive = archive.with_suffix(".zip")
-    if archive.exists():
-        archive.unlink()
+    archive.unlink(missing_ok=True)
 
-    # make_archive takes a base name without the .zip suffix.
     manufacturer = tree.parent.name
-    created = shutil.make_archive(
-        str(archive.with_suffix("")),
-        "zip",
-        root_dir=str(tree.parent.parent),
-        base_dir=str(Path(manufacturer) / tree.name),
-    )
-    return Path(created)
+    prefix = Path(manufacturer) / tree.name
+
+    def skipped(relative: Path) -> bool:
+        if include_stock_root:
+            return False
+        parts = relative.parts
+        return (
+            len(parts) >= 2
+            and parts[0] == "recovery"
+            and parts[1] == "stock-root"
+        )
+
+    with zipfile.ZipFile(
+            archive,
+            "w",
+            compression=zipfile.ZIP_DEFLATED,
+            compresslevel=9,
+            allowZip64=True) as bundle:
+        for root, dirs, files in os.walk(
+                tree, topdown=True, followlinks=False):
+            root_path = Path(root)
+            relative_root = root_path.relative_to(tree)
+
+            kept_dirs = []
+            for name in sorted(dirs):
+                path = root_path / name
+                relative = relative_root / name
+                if skipped(relative):
+                    continue
+                arcname = (prefix / relative).as_posix()
+                if path.is_symlink():
+                    _zip_symlink(bundle, path, arcname)
+                    continue
+                kept_dirs.append(name)
+                # Retain empty/source directories and their Unix mode.
+                info = zipfile.ZipInfo.from_file(
+                    path,
+                    arcname + "/",
+                )
+                bundle.writestr(info, b"")
+            dirs[:] = kept_dirs
+
+            for name in sorted(files):
+                path = root_path / name
+                relative = relative_root / name
+                if skipped(relative):
+                    continue
+                arcname = (prefix / relative).as_posix()
+                if path.is_symlink():
+                    _zip_symlink(bundle, path, arcname)
+                else:
+                    bundle.write(path, arcname)
+
+    return archive
 
 
 def generate_tree_from_image(
@@ -114,6 +187,7 @@ def fetch_and_generate_tree(
         keep_firmware: bool = False,
         keep_image: bool = False,
         image_output: Optional[Path] = None,
+        include_stock_root: bool = False,
 ) -> CloudTreeResult:
     """Download firmware in the cloud, slice one image, generate and ZIP a tree."""
     persistent = bool(work_dir or keep_firmware or keep_image)
@@ -171,7 +245,11 @@ def fetch_and_generate_tree(
             dynamic_group_size=dynamic_group_size,
             overwrite=overwrite,
         )
-        archive_path = _archive_tree(tree, archive)
+        archive_path = _archive_tree(
+            tree,
+            archive,
+            include_stock_root=include_stock_root,
+        )
 
         if not keep_firmware:
             firmware.unlink(missing_ok=True)
@@ -266,6 +344,14 @@ def build_parser() -> ArgumentParser:
         help="persistent extracted image path; implies keeping that image",
     )
     parser.add_argument(
+        "--include-stock-root",
+        action="store_true",
+        help=(
+            "include recovery/stock-root in the downloadable ZIP; "
+            "by default it remains only in the cloud workspace"
+        ),
+    )
+    parser.add_argument(
         "--colab-download",
         action="store_true",
         help="download only the final generated tree ZIP in Google Colab",
@@ -303,6 +389,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
             keep_firmware=args.keep_firmware,
             keep_image=(args.keep_image or args.image_output is not None),
             image_output=args.image_output,
+            include_stock_root=args.include_stock_root,
         )
         print()
         print("Cloud TWRP device-tree generation complete")
