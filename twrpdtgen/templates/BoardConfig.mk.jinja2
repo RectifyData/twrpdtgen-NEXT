@@ -6,16 +6,21 @@ DEVICE_PATH := device/{{ device_info.manufacturer }}/{{ device_info.codename }}
 ALLOW_MISSING_DEPENDENCIES := true
 
 {% if device_info.device_is_ab %}
-# A/B
+# Slot-based device; recovery location is configured separately.
 AB_OTA_UPDATER := true
-AB_OTA_PARTITIONS +=
-{%- for partition in fstab.get_ab_partitions_models() %} \
-    {{ partition.name }}
-{%- endfor %}
-
-BOARD_USES_RECOVERY_AS_BOOT := true
-
+{% if ab_partition_names %}
+AB_OTA_PARTITIONS += {{ ab_partition_names | join(' ') }}
 {% endif %}
+{% endif %}
+{% if recovery_layout == "boot" %}
+BOARD_USES_RECOVERY_AS_BOOT := true
+{% elif recovery_layout == "vendor_boot" %}
+# Recovery is in vendor_boot: device-specific ramdisk fragment and build
+# flags must be confirmed against the target recovery source branch.
+{% elif recovery_layout == "unknown" %}
+# TODO: Verify whether recovery is dedicated, in boot, or in vendor_boot.
+{% endif %}
+
 # Architecture
 TARGET_ARCH := {{ device_info.arch.arch }}
 TARGET_ARCH_VARIANT := {{ device_info.arch.arch_variant }}
@@ -102,24 +107,31 @@ TARGET_KERNEL_CONFIG := {{ device_info.codename }}_defconfig
 TARGET_KERNEL_SOURCE := kernel/{{ device_info.manufacturer }}/{{ device_info.codename }}
 
 # Kernel - prebuilt
+{% if image_info.kernel %}
 TARGET_FORCE_PREBUILT_KERNEL := true
 ifeq ($(TARGET_FORCE_PREBUILT_KERNEL),true)
 TARGET_PREBUILT_KERNEL := $(DEVICE_PATH)/prebuilt/kernel
-{% if image_info.dt %}
+{% else %}
+# No kernel was present in the input image; supply a verified kernel source
+# or prebuilt before attempting a build.
+{% endif %}
+{% if image_info.kernel and image_info.dt %}
 TARGET_PREBUILT_DT := $(DEVICE_PATH)/prebuilt/dt.img
 BOARD_MKBOOTIMG_ARGS += --dt $(TARGET_PREBUILT_DT)
 BOARD_KERNEL_SEPARATED_DT := 
 {% endif %}
-{% if image_info.dtb %}
+{% if image_info.kernel and image_info.dtb %}
 TARGET_PREBUILT_DTB := $(DEVICE_PATH)/prebuilt/dtb.img
 BOARD_MKBOOTIMG_ARGS += --dtb $(TARGET_PREBUILT_DTB)
 BOARD_INCLUDE_DTB_IN_BOOTIMG := 
 {% endif %}
-{% if image_info.dtbo %}
+{% if image_info.kernel and image_info.dtbo %}
 BOARD_PREBUILT_DTBOIMAGE := $(DEVICE_PATH)/prebuilt/dtbo.img
 BOARD_KERNEL_SEPARATED_DTBO := 
 {% endif %}
+{% if image_info.kernel %}
 endif
+{% endif %}
 
 # Partitions
 {% if device_info.device_uses_system_as_root %}
@@ -128,19 +140,37 @@ BOARD_BUILD_SYSTEM_ROOT_IMAGE := true
 {% if image_info.pagesize %}
 BOARD_FLASH_BLOCK_SIZE := {{ image_info.pagesize|int * 64 }} # (BOARD_KERNEL_PAGESIZE * 64)
 {% endif %}
-BOARD_BOOTIMAGE_PARTITION_SIZE := {{ image_info.origsize }}
-BOARD_RECOVERYIMAGE_PARTITION_SIZE := {{ image_info.origsize }}
+# Only verified partition sizes may be emitted. Input image length is not
+# necessarily equal to its partition size.
+{% if next_options.boot_size %}
+BOARD_BOOTIMAGE_PARTITION_SIZE := {{ next_options.boot_size }}
+{% else %}
+# TODO: Verify boot partition size from the stock partition table.
+{% endif %}
+{% if next_options.recovery_size %}
+BOARD_RECOVERYIMAGE_PARTITION_SIZE := {{ next_options.recovery_size }}
+{% elif recovery_layout == "dedicated" %}
+# TODO: Verify dedicated recovery partition size.
+{% endif %}
 BOARD_HAS_LARGE_FILESYSTEM := true
 BOARD_SYSTEMIMAGE_PARTITION_TYPE := ext4
 BOARD_USERDATAIMAGE_FILE_SYSTEM_TYPE := ext4
 BOARD_VENDORIMAGE_FILE_SYSTEM_TYPE := ext4
 TARGET_COPY_OUT_VENDOR := vendor
 {% if device_info.device_uses_dynamic_partitions %}
-BOARD_SUPER_PARTITION_SIZE := 9126805504 # TODO: Fix hardcoded value
+# Dynamic partitions detected; never guess super metadata/geometry.
+{% if dynamic_partition_names %}
+# Detected logical partitions: {{ dynamic_partition_names | join(' ') }}
+{% endif %}
+{% if next_options.super_size and next_options.dynamic_group_size and dynamic_partition_names %}
+BOARD_SUPER_PARTITION_SIZE := {{ next_options.super_size }}
 BOARD_SUPER_PARTITION_GROUPS := {{ device_info.manufacturer }}_dynamic_partitions
-BOARD_{{ device_info.manufacturer|upper }}_DYNAMIC_PARTITIONS_PARTITION_LIST := {%- for partition in fstab.get_logical_partitions() %} {{ partition.src }}{% endfor %}
-
-BOARD_{{ device_info.manufacturer|upper }}_DYNAMIC_PARTITIONS_SIZE := 9122611200 # TODO: Fix hardcoded value
+BOARD_{{ device_info.manufacturer|upper }}_DYNAMIC_PARTITIONS_PARTITION_LIST := {{ dynamic_partition_names | join(' ') }}
+BOARD_{{ device_info.manufacturer|upper }}_DYNAMIC_PARTITIONS_SIZE := {{ next_options.dynamic_group_size }}
+{% else %}
+# TODO: Supply verified --super-size and --dynamic-group-size before
+# building a super image. Retrofit dynamic partitions need separate review.
+{% endif %}
 {% endif %}
 {% if image_info.ramdisk_compression == "lzma" %}
 LZMA_RAMDISK_TARGETS := recovery
@@ -150,6 +180,7 @@ LZMA_RAMDISK_TARGETS := recovery
 TARGET_BOARD_PLATFORM := {{ device_info.platform }}
 
 # Recovery
+TARGET_RECOVERY_FSTAB := $(DEVICE_PATH)/recovery.fstab
 {% if image_info.dtbo and not device_info.device_is_ab %}
 BOARD_INCLUDE_RECOVERY_DTBO := true
 {% endif %}
@@ -159,27 +190,16 @@ TARGET_RECOVERY_PIXEL_FORMAT := {{ device_info.device_pixel_format }}
 TARGET_USERIMAGES_USE_EXT4 := true
 TARGET_USERIMAGES_USE_F2FS := true
 
-{% if device_info.vendor_build_security_patch %}
-# Security patch level
-VENDOR_SECURITY_PATCH := 2021-08-01
-
+{% if security_patch %}
+# Preserved from stock firmware; do not substitute artificial patch levels.
+VENDOR_SECURITY_PATCH := {{ security_patch }}
 {% endif %}
 {% if image_info.sigtype == "AVBv2" %}
-# Verified Boot
-BOARD_AVB_ENABLE := true
-BOARD_AVB_MAKE_VBMETA_IMAGE_ARGS += --flags 3
-{% if not device_info.device_is_ab %}
-BOARD_AVB_RECOVERY_KEY_PATH := external/avb/test/data/testkey_rsa4096.pem
-BOARD_AVB_RECOVERY_ALGORITHM := SHA256_RSA4096
-BOARD_AVB_RECOVERY_ROLLBACK_INDEX := 1
-BOARD_AVB_RECOVERY_ROLLBACK_INDEX_LOCATION := 1
+# AVBv2 detected. Signing keys and rollback indices are device specific.
+# TODO: Configure BoardConfig AVB parameters after examining the stock vbmeta
+# chain; do not use test keys or disable verification by default.
 {% endif %}
-
-{% endif %}
-# Hack: prevent anti rollback
-PLATFORM_SECURITY_PATCH := 2099-12-31
-VENDOR_SECURITY_PATCH := 2099-12-31
-PLATFORM_VERSION := 16.1.0
+# Android platform version comes from the selected recovery source tree.
 
 # TWRP Configuration
 TW_THEME := portrait_hdpi
