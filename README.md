@@ -8,9 +8,9 @@ device-tree skeletons from classic and split Android boot images.
 - **[Launcher guide](docs/launchers.md)** — complete Windows CMD, PowerShell,
   Linux and Google Colab setup/usage, command reference, examples and
   troubleshooting.
-- **[Cloud firmware slicing](docs/cloud-firmware-slicing.md)** — use Google
-  Colab/cloud compute to download Samsung firmware from FUS and return only the
-  requested standalone partition image.
+- **[Cloud firmware slicing + full Colab generation](docs/cloud-firmware-slicing.md)** —
+  download Samsung firmware from FUS in the cloud, return only one image, or
+  continue directly into a complete twrpdtgen device-tree generation.
 - Run `python3 -m twrpdtgen --help` (or the equivalent through a launcher) for
   the current generator CLI arguments.
 
@@ -54,14 +54,32 @@ python3 -m twrpdtgen.cloud_slice fetch \
   --colab-download
 ~~~
 
-Only the final payload is downloaded to the local machine. The full firmware
-ZIP is deleted from the cloud by default after a successful slice.
+Only the final payload is downloaded to the local machine in image-only mode.
+The same Colab notebook can now continue directly into the rest of twrpdtgen:
+it feeds the extracted recovery-bearing image into the normal DeviceTree
+pipeline, generates the candidate source tree, ZIPs the
+`<manufacturer>/<codename>/` output, and downloads only that ZIP.
+
+~~~bash
+python3 -m twrpdtgen.cloud_tree \
+  -m SM-A207F \
+  -r NEE \
+  --partition recovery \
+  --package AP \
+  --tree-output /content/twrp-tree \
+  --archive /content/twrp-device-tree.zip \
+  --colab-download
+~~~
+
+The full firmware ZIP is deleted from the cloud by default after a successful
+run.
 
 For the easiest workflow, open
 **[colab/cloud_firmware_slice.ipynb](colab/cloud_firmware_slice.ipynb)** in
-Google Colab. See
+Google Colab. It now exposes **Generate TWRP device tree** and
+**Extract image only** modes. See
 **[docs/cloud-firmware-slicing.md](docs/cloud-firmware-slicing.md)** for the
-architecture, package selection, exact-member mode, cleanup behavior and
+architecture, generation options, package selection, cleanup behavior and
 limitations.
 
 ## Recovery ramdisk -> skeleton

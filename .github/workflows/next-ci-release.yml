@@ -24,8 +24,10 @@ jobs:
           bash -n cloud-slice.sh
       - name: Validate Colab notebook JSON
         run: python -m json.tool colab/cloud_firmware_slice.ipynb >/dev/null
-      - name: Validate cloud slicer CLI
-        run: PYTHONPATH=. python -m twrpdtgen.cloud_slice --help >/dev/null
+      - name: Validate cloud CLIs
+        run: |
+          PYTHONPATH=. python -m twrpdtgen.cloud_slice --help >/dev/null
+          PYTHONPATH=. python -m twrpdtgen.cloud_tree --help >/dev/null
       - name: Compile Python
         run: python -m compileall -q twrpdtgen tests
       - name: Run unit regression checks
