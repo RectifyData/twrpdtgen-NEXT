@@ -369,3 +369,12 @@ visible.
 `proprietary-files.txt` is generated as an explicit empty placeholder instead
 of leaving `extract-files.sh` and `setup-makefiles.sh` pointing at a missing
 file. Populate it only with verified blobs when those helper scripts are needed.
+
+
+### Verified partition-size inputs
+
+The full Colab form exposes optional boot, recovery, super, and dynamic-group
+size fields. Values may be byte counts or accepted values such as `64MiB`.
+They are forwarded to the normal NEXT partition-size validation. Leave them
+blank when the exact GPT/lpdump value has not been verified; NEXT deliberately
+does not treat image file length as partition capacity.
