@@ -59,5 +59,21 @@ class RamdiskSkeletonTests(unittest.TestCase):
         self.assertFalse(is_device_overlay_path("init.rc"))
 
 
+    def test_unsafe_symlink_is_not_copied(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            source = root / "source"
+            source.mkdir()
+            (source / "vendor").mkdir()
+            (source / "vendor/bad").symlink_to("../../outside")
+            report = materialize_recovery_skeleton(
+                source,
+                root / "stock",
+                root / "build",
+                "minimal")
+            self.assertFalse((root / "build/vendor/bad").exists())
+            self.assertTrue(report["overlay"]["skipped_special"])
+
+
 if __name__ == "__main__":
     unittest.main()
