@@ -5,7 +5,7 @@
 from dataclasses import dataclass, field
 import fnmatch
 import json
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import shutil
 import stat
 from typing import List
@@ -60,22 +60,54 @@ def _relative_name(path: Path) -> str:
     return path.as_posix().lstrip("./")
 
 
+def _ensure_real_directory(path: Path):
+    """Create path while replacing symlink ancestors instead of following them."""
+    pending = []
+    cursor = path
+    while not cursor.exists() and not cursor.is_symlink():
+        pending.append(cursor)
+        parent = cursor.parent
+        if parent == cursor:
+            break
+        cursor = parent
+    if cursor.is_symlink():
+        cursor.unlink()
+        cursor.mkdir()
+    elif cursor.exists() and not cursor.is_dir():
+        cursor.unlink()
+        cursor.mkdir()
+    for directory in reversed(pending):
+        if directory.is_symlink():
+            directory.unlink()
+        if not directory.exists():
+            directory.mkdir()
+
+
 def _copy_one(source: Path, destination: Path, report: RamdiskCopyReport):
     """Copy a regular file/directory/symlink without following source symlinks."""
     info = source.lstat()
     mode = info.st_mode
     if stat.S_ISLNK(mode):
-        destination.parent.mkdir(parents=True, exist_ok=True)
+        _ensure_real_directory(destination.parent)
+        target = PurePosixPath(str(source.readlink()))
+        if target.is_absolute() or ".." in target.parts:
+            report.skipped_special.append(destination.as_posix())
+            return
         if destination.exists() or destination.is_symlink():
             if destination.is_dir() and not destination.is_symlink():
                 shutil.rmtree(destination)
             else:
                 destination.unlink()
-        destination.symlink_to(source.readlink())
+        destination.symlink_to(str(target))
         report.copied_symlinks.append(destination.as_posix())
         return
     if stat.S_ISDIR(mode):
-        destination.mkdir(parents=True, exist_ok=True)
+        _ensure_real_directory(destination.parent)
+        if destination.is_symlink():
+            destination.unlink()
+        elif destination.exists() and not destination.is_dir():
+            destination.unlink()
+        destination.mkdir(parents=False, exist_ok=True)
         try:
             destination.chmod(stat.S_IMODE(mode))
         except OSError:
@@ -83,7 +115,11 @@ def _copy_one(source: Path, destination: Path, report: RamdiskCopyReport):
         report.copied_dirs.append(destination.as_posix())
         return
     if stat.S_ISREG(mode):
-        destination.parent.mkdir(parents=True, exist_ok=True)
+        _ensure_real_directory(destination.parent)
+        if destination.is_symlink():
+            destination.unlink()
+        elif destination.exists() and destination.is_dir():
+            shutil.rmtree(destination)
         shutil.copy2(source, destination, follow_symlinks=False)
         report.copied_files.append(destination.as_posix())
         return
