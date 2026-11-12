@@ -162,6 +162,7 @@ class GenerationTests(unittest.TestCase):
             self.assertIn("BOARD_MKBOOTIMG_ARGS += --board $(BOARD_NAME)", board)
             self.assertIn("BOARD_MKBOOTIMG_ARGS += --pagesize $(BOARD_KERNEL_PAGESIZE)", board)
             self.assertIn("BOARD_KERNEL_OFFSET := 0x00008000", board)
+            self.assertIn("BOARD_KERNEL_IMAGE_NAME := Image", board)
             self.assertIn("# Detected logical partitions: system vendor", board)
             self.assertNotIn("BOARD_SUPER_PARTITION_SIZE :=", board)
             self.assertNotIn("BOARD_RECOVERYIMAGE_PARTITION_SIZE :=", board)
