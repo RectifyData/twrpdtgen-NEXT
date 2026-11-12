@@ -1,23 +1,25 @@
-# twrpdtgen-NEXT 3.1.0a4 — Google Colab launcher
+# twrpdtgen-NEXT 3.1.0a5 — native Windows launcher
 
-This prerelease adds a root-level launcher designed for cloned Google Colab
-sessions while remaining usable on normal Debian/Ubuntu Linux hosts.
+This prerelease adds a native Windows CMD entry point for the modern
+boot/recovery parser while keeping the Linux/Colab launcher.
 
-- Adds `launcher.sh` for clone-and-run Colab setup.
-- Detects Google Colab without requiring a separate notebook.
-- Installs only missing Linux extraction tools instead of performing a full
-  package reinstall on every launch.
-- Installs the cloned repository in editable mode so the launcher always runs
-  the checked-out NEXT source.
-- Preserves the caller working directory, so relative input/output paths behave
-  normally while the package itself is loaded from the clone.
-- Passes all normal arguments directly to `python3 -m twrpdtgen`.
-- Adds launcher-only `--doctor`, `--self-test`, and `--setup-only` modes.
-- Adds Colab examples for dedicated recovery.img and split
-  boot/init_boot/vendor_boot layouts.
-- CI now validates launcher shell syntax and exercises the launcher self-test
-  path with bootstrap installation disabled.
+- Adds `launcher.cmd` with the same image-to-output syntax as launcher.sh.
+- Detects `py -3` or `python`, validates Python 3.8+, and installs cloned
+  repo dependencies only when they are missing.
+- Runs directly from the checked-out source tree and preserves normal Windows
+  absolute/relative paths.
+- Supports native Windows handling for boot/recovery header v3/v4, init_boot v4
+  and vendor_boot v3/v4.
+- Replaces the external zstd CLI requirement with Python `zstandard`, removing
+  one host-tool dependency from Windows/Colab/Linux modern parsing.
+- Keeps legacy AIK-only formats explicitly separate; those may still need
+  Linux/WSL host tooling.
+- Adds Windows `--doctor`, `--self-test`, and `--setup-only` launcher
+  modes.
+- Adds a Windows GitHub Actions job that runs the CMD launcher doctor and full
+  regression suite on `windows-latest`.
+- Keeps Linux/Colab CI and release gating intact.
 
-**Experimental source generator prerelease.** Colab setup and the parser/test
-suite are validated in CI. Device-tree correctness still depends on the actual
-stock images and target-specific recovery requirements.
+**Experimental source generator prerelease.** Native Windows launcher and modern
+parser behavior are CI-tested, but device-tree correctness still depends on the
+actual stock images and device-specific recovery requirements.
