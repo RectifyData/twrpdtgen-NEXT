@@ -23,6 +23,9 @@ Fixes in 3.1.0a14:
   image trailer, Odin tar, and verified-boot packaging remain device-specific.
 - Adds regression coverage for root and nested init RC brightness detection and
   rendered BoardConfig output.
+- Fixes the partition-size parser/documentation mismatch: CLI and Colab size
+  fields now actually accept binary `KiB`, `MiB`, and `GiB` suffixes such
+  as `64MiB`, in addition to decimal and hexadecimal byte counts.
 
 The audit still leaves A20s-specific work that cannot be safely inferred from
 this recovery image alone: TWRP backup/flash fstab policy, removable
