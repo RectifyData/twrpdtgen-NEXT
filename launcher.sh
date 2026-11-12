@@ -89,7 +89,12 @@ twrpdtgen-NEXT is ready.
 Colab:
   !git clone https://github.com/RectifyData/twrpdtgen-NEXT.git
   %cd twrpdtgen-NEXT
-  !bash launcher.sh recovery.img
+  !./launcher.sh /content/recovery.img -o /content/output
+
+General form:
+  ./launcher.sh [path-to-image-containing-recovery-ramdisk] -o [output-folder]
+
+The output folder is created automatically if it does not exist.
 
 Modern split layout:
   !bash launcher.sh init_boot.img --boot-image boot.img --vendor-boot vendor_boot.img --skeleton twrp-14.1
@@ -106,6 +111,7 @@ Launcher commands:
   bash launcher.sh --setup-only
 
 All other arguments are passed directly to python3 -m twrpdtgen.
+The -o/--output directory does not need to exist beforehand.
 EOF
 }
 
