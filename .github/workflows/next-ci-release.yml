@@ -30,9 +30,19 @@ jobs:
           TWRPDTGEN_SKIP_PIP: '1'
         run: bash launcher.sh --self-test
 
+  colab-bootstrap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Exercise clone-and-run launcher bootstrap
+        run: bash launcher.sh --doctor
+
   preview-release:
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-    needs: tests
+    needs: [tests, colab-bootstrap]
     runs-on: ubuntu-latest
     permissions:
       contents: write
