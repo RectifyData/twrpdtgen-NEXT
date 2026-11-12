@@ -60,8 +60,16 @@ class NextSupportTests(unittest.TestCase):
 
     def test_partition_geometry(self):
         self.assertEqual(parse_partition_size("0x4000000"), 67108864)
+        self.assertEqual(parse_partition_size("67108864"), 67108864)
+        self.assertEqual(parse_partition_size("64MiB"), 67108864)
+        self.assertEqual(parse_partition_size("64 mib"), 67108864)
+        self.assertEqual(parse_partition_size("1GiB"), 1073741824)
         with self.assertRaises(ValueError):
             parse_partition_size("9126805503")
+        with self.assertRaises(ValueError):
+            parse_partition_size("64MB")
+        with self.assertRaises(ValueError):
+            parse_partition_size("nope")
         with self.assertRaises(ValueError):
             NextOptions(super_size=4096, dynamic_group_size=4096)
         with self.assertRaises(ValueError):
