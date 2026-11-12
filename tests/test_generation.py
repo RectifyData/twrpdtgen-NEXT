@@ -98,7 +98,9 @@ class GenerationTests(unittest.TestCase):
             (ramdisk / "system/bin/recovery").write_text("stock recovery binary")
             (ramdisk / "init.rc").write_text("generic stock init")
             (ramdisk / "init.recovery.exynos9820.rc").write_text(
-                "on init\n    setprop recovery.device 1\n")
+                "on init\n"
+                "    setprop recovery.device 1\n"
+                "    write /sys/class/backlight/panel0-backlight/brightness 180\n")
             (ramdisk / "vendor/firmware").mkdir(parents=True)
             (ramdisk / "vendor/firmware/tsp.bin").write_bytes(b"firmware")
             kernel = tmp / "kernel"
@@ -169,6 +171,11 @@ class GenerationTests(unittest.TestCase):
             self.assertIn("BOARD_MKBOOTIMG_ARGS += --pagesize $(BOARD_KERNEL_PAGESIZE)", board)
             self.assertIn("BOARD_KERNEL_OFFSET := 0x00008000", board)
             self.assertIn("BOARD_KERNEL_IMAGE_NAME := Image", board)
+            self.assertIn(
+                'TW_BRIGHTNESS_PATH := "/sys/class/backlight/panel0-backlight/brightness"',
+                board,
+            )
+            self.assertIn("TW_DEFAULT_BRIGHTNESS := 180", board)
             self.assertIn("# Detected logical partitions: system vendor", board)
             self.assertNotIn("BOARD_SUPER_PARTITION_SIZE :=", board)
             self.assertNotIn("BOARD_RECOVERYIMAGE_PARTITION_SIZE :=", board)
