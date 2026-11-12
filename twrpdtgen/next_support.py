@@ -294,3 +294,48 @@ def format_twrp_fstab(fstab, *, system_as_root: bool = False) -> str:
         )
 
     return "\n".join(rendered) + "\n"
+
+
+def detect_brightness_policy(ramdisk_or_roots):
+    """Infer a recovery brightness path/default only from explicit stock init writes.
+
+    TWRP can discover max_brightness at runtime, so we deliberately do not
+    guess it. If stock init writes more than one distinct brightness node,
+    return no policy rather than selecting one arbitrarily.
+    """
+    matches = []
+    pattern = re.compile(
+        r"^\s*write\s+(\S*/brightness)\s+(\d+)\s*(?:#.*)?$"
+    )
+    for root in _ramdisk_roots(ramdisk_or_roots):
+        candidates = list(root.glob("init*.rc"))
+        for relative in (
+                "system/etc/init",
+                "vendor/etc/init",
+                "odm/etc/init"):
+            folder = root / relative
+            if folder.is_dir():
+                candidates.extend(folder.rglob("*.rc"))
+        seen = set()
+        for path in candidates:
+            path = Path(path)
+            if path in seen or not path.is_file():
+                continue
+            seen.add(path)
+            for line in path.read_text(
+                    encoding="utf-8",
+                    errors="replace").splitlines():
+                match = pattern.match(line)
+                if not match:
+                    continue
+                brightness_path, value = match.groups()
+                if not brightness_path.startswith("/sys/"):
+                    continue
+                matches.append((brightness_path, int(value)))
+
+    unique_paths = {path for path, _ in matches}
+    if len(unique_paths) != 1:
+        return None, None
+    path = next(iter(unique_paths))
+    values = [value for candidate, value in matches if candidate == path]
+    return path, values[-1] if values else None
