@@ -166,5 +166,46 @@ class GenerationTests(unittest.TestCase):
             again.cleanup()
 
 
+    def test_vendor_boot_recovery_fragment_selection_is_unambiguous(self):
+        DeviceTree = load_device_tree(Obj())
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            one = root / "one"
+            two = root / "two"
+            one.mkdir()
+            two.mkdir()
+            fragment_one = Obj(
+                ramdisk_type=2, index=1, name="recovery-a",
+                root=one, type_name="recovery", board_id=(1, 0))
+            fragment_two = Obj(
+                ramdisk_type=2, index=2, name="recovery-b",
+                root=two, type_name="recovery", board_id=(2, 0))
+            vendor = Obj(
+                kind="vendor_boot", source=Path("vendor_boot.img"),
+                vendor_ramdisk_fragments=[fragment_one],
+                ramdisk_roots=[one])
+            probe = object.__new__(DeviceTree)
+            probe.modern_manager = object()
+            probe.image_info = Obj(source_images=[vendor])
+            probe.recovery_layout = "vendor_boot"
+            probe.recovery_fragment = None
+            roots, source = probe._select_recovery_ramdisk()
+            self.assertEqual(roots, [one])
+            self.assertEqual(
+                source["kind"], "vendor_boot_recovery_fragment")
+            self.assertEqual(source["fragment_name"], "recovery-a")
+
+            vendor.vendor_ramdisk_fragments = [
+                fragment_one, fragment_two]
+            with self.assertRaisesRegex(
+                    ValueError, "multiple RECOVERY fragments"):
+                probe._select_recovery_ramdisk()
+
+            probe.recovery_fragment = "2"
+            roots, source = probe._select_recovery_ramdisk()
+            self.assertEqual(roots, [two])
+            self.assertEqual(source["fragment_name"], "recovery-b")
+
+
 if __name__ == "__main__":
     unittest.main()
