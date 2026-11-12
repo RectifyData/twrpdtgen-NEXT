@@ -266,6 +266,14 @@ class DeviceTree:
                     f"Recovery fragment selector {key!r} matched "
                     f"{len(matches)} vendor ramdisk fragments")
             selected = matches[0]
+            if selected.ramdisk_type == 3:
+                raise ValueError(
+                    "A DLKM vendor ramdisk fragment cannot be used as the "
+                    "recovery root")
+            if typed and selected.ramdisk_type != 2:
+                raise ValueError(
+                    "Typed RECOVERY fragments exist; select one of those "
+                    "instead of a PLATFORM/NONE fragment")
             return [selected.root], {
                 "kind": (
                     "vendor_boot_recovery_fragment"
