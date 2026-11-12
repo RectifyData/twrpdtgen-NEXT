@@ -1,32 +1,23 @@
-# twrpdtgen-NEXT 3.1.0a3 — recovery-ramdisk skeleton generation
+# twrpdtgen-NEXT 3.1.0a4 — Google Colab launcher
 
-This prerelease changes skeleton generation to use the selected recovery
-ramdisk itself rather than copying only a few init scripts.
+This prerelease adds a root-level launcher designed for cloned Google Colab
+sessions while remaining usable on normal Debian/Ubuntu Linux hosts.
 
-- Preserves the complete expanded selected recovery payload in
-  `recovery/stock-root/`.
-- Seeds the actual Android/TWRP build overlay in `recovery/root/`.
-- The complete selected recovery payload is always preserved in stock-root,
-  including typed vendor_boot RECOVERY fragments.
-- Auto mode always uses a conservative build overlay so stock recovery, init,
-  adbd and generic framework files do not replace TWRP; full overlay is an
-  explicit override.
-- Adds deterministic `--recovery-fragment` selection when vendor_boot has
-  multiple board-specific recovery fragments; unsafe board_id guessing is
-  rejected.
-- Adds `--recovery-root-mode auto|minimal|full`.
-- Recovery fstab selection now follows the selected recovery source first.
-- Dedicated recovery.img takes precedence over a companion vendor_boot hint.
-- Adds `recovery/ramdisk-manifest.json` with source and copy provenance.
-- Ramdisk tree copying preserves safe relative symlinks and rejects escaping
-  symlink targets/special host entries.
-- Uses hardlinks for stock-root regular files when possible, with copy fallback
-  across filesystems, avoiding a second full ramdisk write.
-- Generated .gitignore keeps the full stock-root out of device-tree Git history
-  while leaving the manifest and build overlay trackable.
-- Adds regression coverage for stock-root preservation, minimal/full overlay
-  behavior and vendor recovery-fragment selection.
+- Adds `launcher.sh` for clone-and-run Colab setup.
+- Detects Google Colab without requiring a separate notebook.
+- Installs only missing Linux extraction tools instead of performing a full
+  package reinstall on every launch.
+- Installs the cloned repository in editable mode so the launcher always runs
+  the checked-out NEXT source.
+- Preserves the caller working directory, so relative input/output paths behave
+  normally while the package itself is loaded from the clone.
+- Passes all normal arguments directly to `python3 -m twrpdtgen`.
+- Adds launcher-only `--doctor`, `--self-test`, and `--setup-only` modes.
+- Adds Colab examples for dedicated recovery.img and split
+  boot/init_boot/vendor_boot layouts.
+- CI now validates launcher shell syntax and exercises the launcher self-test
+  path with bootstrap installation disabled.
 
-**Experimental source generator prerelease.** Recovery-root extraction and
-skeleton placement are validated by tests, but physical-device bootability
-still depends on device-specific kernel, AVB, SELinux and decryption support.
+**Experimental source generator prerelease.** Colab setup and the parser/test
+suite are validated in CI. Device-tree correctness still depends on the actual
+stock images and target-specific recovery requirements.
