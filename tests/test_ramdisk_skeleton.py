@@ -65,7 +65,10 @@ class RamdiskSkeletonTests(unittest.TestCase):
             source = root / "source"
             source.mkdir()
             (source / "vendor").mkdir()
-            (source / "vendor/bad").symlink_to("../../outside")
+            try:
+                (source / "vendor/bad").symlink_to("../../outside")
+            except OSError:
+                self.skipTest("Host does not permit symlink creation")
             report = materialize_recovery_skeleton(
                 source,
                 root / "stock",
