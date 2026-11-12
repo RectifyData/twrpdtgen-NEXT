@@ -79,6 +79,24 @@ jobs:
               check=True,
           )
           PY
+      - name: Probe Galaxy A20s firmware transfer startup
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          SAMLOADER="$(PYTHONPATH=. python - <<'PY'
+          from twrpdtgen.cloud_slice import ensure_samloader
+          print(ensure_samloader())
+          PY
+          )"
+          timeout 12s "$SAMLOADER" --verbose download             -m SM-A207F -r NEE             -v 'A207FXXS5CWF1/A207FOXM5CWD1/A207FXXS5CWD1/A207FXXS5CWF1'             -j 1 -o /tmp/a20s-probe.zip
+          code=$?
+          rm -f /tmp/a20s-probe.zip /tmp/a20s-probe.zip.part
+          if [ "$code" -eq 124 ]; then
+            echo "Transfer successfully started; timeout was expected."
+            exit 0
+          fi
+          exit "$code"
 
   windows-native:
     runs-on: windows-latest
