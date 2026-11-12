@@ -87,13 +87,27 @@ class NextSupportTests(unittest.TestCase):
     def test_detect_brightness_policy_from_stock_init(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            (root / "init.recovery.qcom.rc").write_text(
+            init = root / "init.recovery.qcom.rc"
+            init.write_text(
                 "on init\n"
                 "    write /sys/class/backlight/panel0-backlight/brightness 200\n"
+                "on shutdown\n"
+                "    write /sys/class/backlight/panel0-backlight/brightness 0\n"
             )
             self.assertEqual(
                 detect_brightness_policy(root),
                 ("/sys/class/backlight/panel0-backlight/brightness", 200),
+            )
+
+            init.write_text(
+                "on init\n"
+                "    write /sys/class/backlight/panel0-backlight/brightness 180\n"
+                "on boot\n"
+                "    write /sys/class/backlight/panel0-backlight/brightness 200\n"
+            )
+            self.assertEqual(
+                detect_brightness_policy(root),
+                ("/sys/class/backlight/panel0-backlight/brightness", None),
             )
 
             nested = root / "vendor/etc/init"
