@@ -1,33 +1,41 @@
-# twrpdtgen-NEXT 3.1.0a11 — Colab stale-code isolation
+# twrpdtgen-NEXT 3.1.0a12 — legacy image fidelity and fstab safety
 
-This prerelease fixes a Colab-only update hazard found by inspecting a newly
-regenerated Galaxy A20s device-tree ZIP after 3.1.0a10.
+This prerelease follows inspection of a clean 3.1.0a11 Galaxy A20s
+SM-A207F tree. The a11 packaging fixes are now confirmed in a real artifact:
+the downloadable tree fell to about 10.9 MB, excluded audit-only
+`recovery/stock-root/`, included `recovery.stock.fstab` and
+`proprietary-files.txt`, used a minimal recovery overlay, and stamped the
+generated README with the exact NEXT version.
 
-The notebook had correctly pulled newer source files, but its long-lived Python
-kernel could still hold older imported `twrpdtgen.cloud_tree` or
-`twrpdtgen.cloud_slice` modules. That produced a mixed-generation artifact:
-new BoardConfig templates were visible from disk while the old in-memory ZIP
-packager still bundled stock-root, dereferenced symlinks, and omitted newly
-generated files.
+That inspection exposed two remaining generic reconstruction problems:
 
-Fixes:
+- The extracted A20s prebuilt kernel is actually an `Image.gz-dtb`: a gzip
+  kernel stream followed by an appended flattened device tree, while the
+  generated BoardConfig still declared `BOARD_KERNEL_IMAGE_NAME := Image`.
+- The normalized TWRP fstab discarded the stock userdata
+  `length=-16384` reservation and kept a system-as-root source mount at
+  `/`, losing recovery-relevant wipe geometry and the conventional
+  `/system_root` TWRP mount.
 
-- Runs cloud slicing and full device-tree generation through fresh
-  `python -m twrpdtgen...` subprocesses on every execution.
-- Keeps Colab browser downloads in the notebook kernel after the subprocess
-  succeeds, so detailed child-process diagnostics remain visible.
-- Prints the exact twrpdtgen version and Git commit loaded after the setup/pull
-  cell.
-- Adds a notebook regression test that prevents reintroducing direct in-kernel
-  imports of the cloud generator entry points.
-- Generated README files now include the twrpdtgen-NEXT version, making mixed or
-  stale artifacts easier to identify during inspection.
+Fixes in 3.1.0a12:
 
-The inspected regenerated A20s tree did confirm that `minimal` recovery-root
-mode was working: its build overlay was only about 2 KiB instead of the previous
-~118 MiB full stock userspace. The remaining stale ZIP behavior was caused by
-the notebook module cache, not the minimal-overlay generator.
+- Detects legacy prebuilt kernel format from content. Gzip kernels emit
+  `Image.gz`; gzip kernels with an appended FDT emit `Image.gz-dtb`.
+- Emits the detected kernel artifact through `BOARD_KERNEL_IMAGE_NAME`.
+- Uses a NEXT-owned conservative TWRP fstab renderer that preserves
+  `length=`, `logical`, `slotselect`, and `wait` flags.
+- Maps stock `/` to `/system_root` when the parsed device is
+  system-as-root, avoiding an empty `display=` entry.
+- Keeps the exact stock fstab beside the normalized file for full audit.
+- Adds notebook fields for verified boot, recovery, super, and dynamic-group
+  partition sizes. They remain blank by default and are never guessed.
+- Adds regression coverage for raw/gzip/gzip+DTB kernel identification and
+  userdata footer preservation.
 
-**Experimental source generator prerelease.** Regenerate artifacts after
-updating the notebook; device-specific build and boot validation is still
-required before flashing.
+Target-specific recovery bring-up files that are not present in the selected
+stock recovery ramdisk, such as additional USB init, ueventd permissions,
+touch firmware, brightness policy, and variant-specific TWRP flags, remain
+explicit device-validation work rather than unsafe generic guesses.
+
+**Experimental source generator prerelease.** A generated tree is still not
+proof of a bootable or safe-to-flash recovery.

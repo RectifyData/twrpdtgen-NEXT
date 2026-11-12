@@ -1,10 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
+import gzip
 import tempfile
 import unittest
+from types import SimpleNamespace as Obj
 from pathlib import Path
 
 from twrpdtgen.next_support import (
-    NextOptions, choose_recovery_layout, detect_android_api, find_recovery_fstab,
+    NextOptions, choose_recovery_layout, detect_android_api,
+    detect_kernel_image_name, find_recovery_fstab, format_twrp_fstab,
     normalize_partition_names, parse_partition_size, resolve_skeleton,
     safe_component, valid_security_patch,
 )
@@ -79,6 +82,58 @@ class NextSupportTests(unittest.TestCase):
         self.assertEqual(choose_recovery_layout("auto", "boot.img", True), "boot")
         self.assertEqual(choose_recovery_layout("auto", "unknown.img", True), "unknown")
         self.assertEqual(choose_recovery_layout("vendor_boot", "boot.img", False), "vendor_boot")
+
+    def test_detect_legacy_kernel_image_name(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            raw = root / "raw"
+            raw.write_bytes(b"not-compressed")
+            self.assertEqual(detect_kernel_image_name(raw), "Image")
+
+            gz = root / "gzip"
+            gz.write_bytes(gzip.compress(b"kernel"))
+            self.assertEqual(detect_kernel_image_name(gz), "Image.gz")
+
+            gz_dtb = root / "gzip-dtb"
+            gz_dtb.write_bytes(
+                gzip.compress(b"kernel")
+                + b"\xd0\x0d\xfe\xed"
+                + b"\x00" * 64
+            )
+            self.assertEqual(
+                detect_kernel_image_name(gz_dtb),
+                "Image.gz-dtb",
+            )
+
+    def test_twrp_fstab_preserves_length_and_sar_mount(self):
+        fstab = Obj(entries=[
+            Obj(
+                mount_point="/",
+                fs_type="ext4",
+                src="/dev/block/by-name/system",
+                fs_flags=["recoveryonly"],
+            ),
+            Obj(
+                mount_point="/data",
+                fs_type="ext4",
+                src="/dev/block/by-name/userdata",
+                fs_flags=["wait", "length=-16384"],
+            ),
+        ])
+        rendered = format_twrp_fstab(
+            fstab,
+            system_as_root=True,
+        )
+        self.assertIn(
+            '/system_root ext4 /dev/block/by-name/system '
+            'flags=display="System"',
+            rendered,
+        )
+        self.assertIn(
+            '/data ext4 /dev/block/by-name/userdata '
+            'flags=display="data";wait;length=-16384',
+            rendered,
+        )
 
     def test_security_patch(self):
         self.assertEqual(valid_security_patch("2026-08-05"), "2026-08-05")
