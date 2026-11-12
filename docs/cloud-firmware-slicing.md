@@ -344,3 +344,28 @@ python3 -m twrpdtgen.cloud_slice fetch \
 The Colab notebook now prints the actual cloud-slicer error directly if a later
 download/archive/decompression step fails; it no longer replaces the useful
 message with a generic `CalledProcessError`.
+
+
+## Downloadable tree ZIP policy
+
+The generated device tree remains expanded in the Colab workspace, including
+`recovery/stock-root/` for audit. The downloadable source ZIP now excludes
+that audit-only stock-root by default because it is ignored by Git, can be over
+100 MiB on a single recovery image, and is not referenced by the build.
+
+Use `--include-stock-root` (or the notebook checkbox) only when the exact
+expanded stock recovery payload is intentionally needed in the downloaded ZIP.
+
+The ZIP writer preserves Unix symlink metadata instead of dereferencing links
+into duplicate regular files. This is important for ramdisk links such as
+`default.prop` and toybox command links. Extract the archive in a
+symlink-capable Unix environment for build use.
+
+Generated trees now also contain `recovery.stock.fstab`, the exact stock fstab
+that twrpdtgen parsed. Compare it against the normalized `recovery.fstab`
+before building so source flags not represented by the formatter remain
+visible.
+
+`proprietary-files.txt` is generated as an explicit empty placeholder instead
+of leaving `extract-files.sh` and `setup-makefiles.sh` pointing at a missing
+file. Populate it only with verified blobs when those helper scripts are needed.

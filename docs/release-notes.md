@@ -1,38 +1,35 @@
-# twrpdtgen-NEXT 3.1.0a9 — full twrpdtgen in the Colab firmware workflow
+# twrpdtgen-NEXT 3.1.0a10 — generated-tree integrity fixes
 
-This prerelease bundles the rest of twrpdtgen directly into the cloud-assisted
-Samsung firmware notebook.
+This prerelease is based on a direct inspection of a generated Galaxy A20s
+SM-A207F tree from the full Colab workflow.
 
-- Adds `twrpdtgen.cloud_tree`, an end-to-end firmware-to-device-tree pipeline.
-- Downloads/decrypts Samsung firmware in the cloud through samloader-rs.
-- Reuses the streamed Odin TAR.MD5 slicer and Samsung legacy/standard LZ4
-  decoders from the cloud-slice workflow.
-- Feeds the extracted recovery-bearing image directly into the normal
-  `DeviceTree` generator without first downloading it to the user's PC.
-- Exposes the normal skeleton, recovery-layout, recovery-root, recovery-fragment,
-  and verified partition-size options.
-- Packages the generated `<manufacturer>/<codename>/` hierarchy into a ZIP.
-- Adds `--colab-download` to download only the final device-tree ZIP.
-- Keeps the extracted image temporary by default; `--keep-image` and
-  `--image-output` make it persistent when needed.
-- Keeps the full firmware temporary by default; `--keep-firmware` remains an
-  explicit opt-in.
-- Updates the existing Colab notebook with two selectable modes:
-  **Generate TWRP device tree** and **Extract image only**.
-- The notebook now runs `launcher.sh --setup-only` during setup so legacy
-  recovery parsing receives the same Linux host dependencies as normal
-  twrpdtgen.
-- Adds `twrpdtgen-cloud-tree` as a console entry point.
-- Adds regression coverage for the one-download -> one-slice -> generation ->
-  ZIP workflow and ZIP hierarchy.
-- Makes reruns with `--overwrite` clean stale cloud firmware/image files before
-  starting again.
+Verified generator fixes:
 
-The full cloud-tree path currently targets a single recovery-bearing primary
-image. Split modern layouts that require coordinated boot/init_boot/vendor_boot
-companions still use twrpdtgen's existing multi-image interface.
+- Replaces the generic `shutil.make_archive` cloud ZIP path with a ZIP writer
+  that preserves Unix symlink entries instead of dereferencing them into regular
+  files.
+- Excludes `recovery/stock-root/` from the downloadable device-tree ZIP by
+  default. The complete stock extraction remains in the cloud workspace for
+  audit and can be included explicitly with `--include-stock-root`.
+- Adds the Colab `include_stock_root_in_zip` control and a prominent warning
+  when `recovery_root_mode = full` is selected.
+- Preserves the exact input fstab as `recovery.stock.fstab` beside the
+  normalized TWRP `recovery.fstab`.
+- Generates a documented placeholder `proprietary-files.txt` so the generated
+  extraction helper scripts no longer reference a nonexistent local file.
+- Fixes an inverted BoardConfig template condition: 64-bit devices now emit
+  `TARGET_USES_64_BIT_BINDER := true` instead of emitting it only for
+  non-64-bit targets.
+- Preserves legacy boot-header reconstruction metadata already extracted by
+  AIK: board name, page size, kernel offset and DTB offset are now emitted back
+  into BoardConfig/mkbootimg arguments when present.
+- Adds regression tests for symlink-safe ZIP packaging, stock-root exclusion,
+  optional stock-root inclusion, stock-fstab preservation, the proprietary-file
+  placeholder, and 64-bit binder output.
 
-**Experimental source generator prerelease.** A generated source tree is not
-proof that a recovery built from it is safe to flash. Kernel, fstab, AVB,
-encryption, SELinux and target-specific hardware integration still require
-validation.
+The inspected A20s artifact also exposed target-specific items that remain
+verification tasks rather than safe generic auto-fixes, including bootloader
+board-name selection and TWRP fstab policy/flags.
+
+**Experimental source generator prerelease.** A generated tree still requires
+device-specific build and boot validation before it is trusted on hardware.

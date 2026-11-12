@@ -106,14 +106,26 @@ class GenerationTests(unittest.TestCase):
             image_info = Obj(ramdisk=ramdisk, kernel=kernel,
                              dt=None, dtb=None, dtbo=None,
                              header_version="3", base_address=None,
+                             board_name="test-board",
                              cmdline="console=null", pagesize=4096,
+                             kernel_offset="0x00008000",
                              ramdisk_offset=None, tags_offset=None,
+                             dtb_offset=None,
                              origsize=1024, ramdisk_compression="gzip",
                              sigtype="AVBv2")
             DeviceTree = load_device_tree(image_info)
             generator = DeviceTree(image)
             tree = generator.dump_to_folder(tmp / "output")
             self.assertTrue((tree / "twrp_beyond2lte.mk").is_file())
+            self.assertTrue((tree / "proprietary-files.txt").is_file())
+            self.assertIn(
+                "No proprietary blob list can be inferred safely",
+                (tree / "proprietary-files.txt").read_text(),
+            )
+            self.assertEqual(
+                (tree / "recovery.stock.fstab").read_text(),
+                "# stock\n",
+            )
             self.assertFalse((tree / "omni_beyond2lte.mk").exists())
             self.assertFalse((tree / "vendorsetup.sh").exists())
             self.assertIn(
@@ -141,6 +153,11 @@ class GenerationTests(unittest.TestCase):
             self.assertIn('"kind": "dedicated_recovery"', manifest)
             board = (tree / "BoardConfig.mk").read_text()
             self.assertIn("TARGET_RECOVERY_FSTAB :=", board)
+            self.assertIn("TARGET_USES_64_BIT_BINDER := true", board)
+            self.assertIn("BOARD_NAME := test-board", board)
+            self.assertIn("BOARD_MKBOOTIMG_ARGS += --board $(BOARD_NAME)", board)
+            self.assertIn("BOARD_MKBOOTIMG_ARGS += --pagesize $(BOARD_KERNEL_PAGESIZE)", board)
+            self.assertIn("BOARD_KERNEL_OFFSET := 0x00008000", board)
             self.assertIn("# Detected logical partitions: system vendor", board)
             self.assertNotIn("BOARD_SUPER_PARTITION_SIZE :=", board)
             self.assertNotIn("BOARD_RECOVERYIMAGE_PARTITION_SIZE :=", board)
