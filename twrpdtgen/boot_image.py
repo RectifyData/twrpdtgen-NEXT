@@ -240,6 +240,10 @@ def decompress_ramdisk(data):
 
 
 def _safe_archive_path(root, name):
+    # Android CPIO paths are POSIX. Reject backslashes outright so an archive
+    # cannot turn them into Windows path separators after validation.
+    if "\\" in name:
+        raise ImageFormatError(f"Unsafe CPIO path: {name!r}")
     pure = PurePosixPath(name)
     if pure.is_absolute() or ".." in pure.parts:
         raise ImageFormatError(f"Unsafe CPIO path: {name!r}")
@@ -311,8 +315,11 @@ def extract_newc(data, root):
                 pass
         elif kind == 0o120000:
             target.parent.mkdir(parents=True, exist_ok=True)
-            link = PurePosixPath(
-                payload.decode("utf-8", errors="surrogateescape"))
+            link_text = payload.decode(
+                "utf-8", errors="surrogateescape")
+            if "\\" in link_text:
+                continue
+            link = PurePosixPath(link_text)
             if link.is_absolute() or ".." in link.parts:
                 continue
             if target.exists() or target.is_symlink():
