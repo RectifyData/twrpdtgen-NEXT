@@ -103,6 +103,10 @@ init_boot.img, vendor_boot.img, dtbo.img, vbmeta.img, super.img, modem.bin,
 and bootloader files. Compressed .lz4 variants are detected and decoded
 remotely.
 
+Both standard LZ4 frames and Samsung/Android legacy LZ4 streams are supported.
+Legacy Odin payloads use magic `02 21 4c 18` and are decoded block-by-block
+instead of being loaded wholly into memory.
+
 You can pass either a short name such as boot or a filename such as boot.img.
 
 ## Package selection
@@ -237,3 +241,29 @@ by Samsung cannot be recovered by NEXT itself.
 
 A payload copied from official firmware is not automatically safe to flash on a
 different model, bootloader revision, region, or partition layout.
+
+
+## Galaxy A20s SM-A207F / NEE
+
+This model/CSC pair was used to validate the failure path that motivated
+3.1.0a8. Samsung FUS currently reports:
+
+~~~text
+A207FXXS5CWF1/A207FOXM5CWD1/A207FXXS5CWD1/A207FXXS5CWF1
+~~~
+
+Example:
+
+~~~bash
+python3 -m twrpdtgen.cloud_slice fetch \
+  -m SM-A207F \
+  -r NEE \
+  --partition recovery \
+  --package AP \
+  -o /content/recovery.img \
+  --colab-download
+~~~
+
+The Colab notebook now prints the actual cloud-slicer error directly if a later
+download/archive/decompression step fails; it no longer replaces the useful
+message with a generic `CalledProcessError`.
