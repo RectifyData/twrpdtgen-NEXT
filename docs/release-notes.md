@@ -20,6 +20,10 @@ ramdisk itself rather than copying only a few init scripts.
 - Adds `recovery/ramdisk-manifest.json` with source and copy provenance.
 - Ramdisk tree copying preserves safe relative symlinks and rejects escaping
   symlink targets/special host entries.
+- Uses hardlinks for stock-root regular files when possible, with copy fallback
+  across filesystems, avoiding a second full ramdisk write.
+- Generated .gitignore keeps the full stock-root out of device-tree Git history
+  while leaving the manifest and build overlay trackable.
 - Adds regression coverage for stock-root preservation, minimal/full overlay
   behavior and vendor recovery-fragment selection.
 
