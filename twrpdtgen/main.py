@@ -118,9 +118,9 @@ def main():
         choices=("auto", "minimal", "full"),
         default="auto",
         help=(
-            "how stock recovery files seed recovery/root: auto copies a "
-            "typed RECOVERY fragment exactly and uses a conservative overlay "
-            "for complete stock recovery/boot ramdisks"))
+            "how stock recovery files seed recovery/root: auto preserves the "
+            "complete extracted ramdisk in stock-root and uses a conservative "
+            "device overlay; full must be requested explicitly"))
     parser.add_argument(
         "--boot-size",
         type=parse_partition_size,
