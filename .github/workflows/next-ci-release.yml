@@ -66,6 +66,19 @@ jobs:
           print("samloader:", executable)
           subprocess.run([str(executable), "--version"], check=True)
           PY
+      - name: Probe Samsung FUS for Galaxy A20s NEE
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          PYTHONPATH=. python - <<'PY'
+          import subprocess
+          from twrpdtgen.cloud_slice import ensure_samloader
+          executable = ensure_samloader()
+          subprocess.run(
+              [str(executable), "check-update", "-m", "SM-A207F", "-r", "NEE"],
+              check=True,
+          )
+          PY
 
   windows-native:
     runs-on: windows-latest
