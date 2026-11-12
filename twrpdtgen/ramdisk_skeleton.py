@@ -94,7 +94,11 @@ def _copy_one(
     mode = info.st_mode
     if stat.S_ISLNK(mode):
         _ensure_real_directory(destination.parent)
-        target = PurePosixPath(str(source.readlink()))
+        # pathlib renders Windows symlink targets with backslashes.
+        # Normalize before applying POSIX archive semantics so "..\\..\\x"
+        # cannot bypass traversal checks on native Windows.
+        target = PurePosixPath(
+            str(source.readlink()).replace("\\", "/"))
         if target.is_absolute() or ".." in target.parts:
             report.skipped_special.append(destination.as_posix())
             return
