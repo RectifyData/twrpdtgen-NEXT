@@ -159,6 +159,20 @@ def copy_ramdisk_tree(
             if include is not None and not include(rel_name):
                 continue
             _copy_one(entry, destination / relative, report)
+
+    # Keep manifests deterministic and portable: record paths relative to the
+    # generated ramdisk root rather than machine-specific output directories.
+    for attribute in (
+            "copied_files", "copied_symlinks",
+            "copied_dirs", "skipped_special"):
+        values = getattr(report, attribute)
+        setattr(
+            report,
+            attribute,
+            [
+                Path(value).relative_to(destination).as_posix()
+                for value in values
+            ])
     return report
 
 
