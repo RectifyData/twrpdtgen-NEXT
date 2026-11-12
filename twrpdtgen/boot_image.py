@@ -67,9 +67,6 @@ class ParsedImage:
     source: Path
     kind: str
     header_version: str
-    boot_header_version: Optional[str]
-    init_boot_header_version: Optional[str]
-    vendor_boot_header_version: Optional[str]
     pagesize: int
     origsize: int
     ramdisk: Optional[Path] = None
@@ -108,6 +105,9 @@ class CombinedImageInfo:
     dtbo: Optional[Path]
     bootconfig: Optional[Path]
     header_version: str
+    boot_header_version: Optional[str]
+    init_boot_header_version: Optional[str]
+    vendor_boot_header_version: Optional[str]
     pagesize: int
     origsize: int
     base_address: Optional[int]
