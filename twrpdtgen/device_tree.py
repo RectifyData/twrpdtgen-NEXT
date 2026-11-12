@@ -26,6 +26,7 @@ from twrpdtgen.next_support import (
     NextOptions,
     choose_recovery_layout,
     detect_android_api,
+    detect_brightness_policy,
     detect_kernel_image_name,
     find_recovery_fstab,
     format_twrp_fstab,
@@ -157,6 +158,11 @@ class DeviceTree:
         self.kernel_image_name = detect_kernel_image_name(
             getattr(self.image_info, "kernel", None)
         )
+
+        (
+            self.brightness_path,
+            self.brightness_default,
+        ) = detect_brightness_policy(self.ramdisk_roots)
 
         (
             self.recovery_ramdisk_roots,
@@ -555,6 +561,8 @@ class DeviceTree:
             fstab=self.fstab,
             image_info=self.image_info,
             kernel_image_name=self.kernel_image_name,
+            brightness_path=self.brightness_path,
+            brightness_default=self.brightness_default,
             version=version,
             skeleton=self.skeleton,
             android_api=self.android_api,
