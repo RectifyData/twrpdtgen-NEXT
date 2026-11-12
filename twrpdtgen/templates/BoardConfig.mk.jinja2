@@ -18,8 +18,8 @@ AB_OTA_PARTITIONS += {{ ab_partition_names | join(' ') }}
 {% if recovery_layout == "boot" %}
 BOARD_USES_RECOVERY_AS_BOOT := true
 {% elif recovery_layout == "vendor_boot" %}
-# Recovery is in vendor_boot: device-specific ramdisk fragment and build
-# flags must be confirmed against the target recovery source branch.
+# Recovery ramdisk fragment detected in vendor_boot. Confirm the exact TWRP
+# branch flags for this device before building/repacking vendor_boot.
 {% elif recovery_layout == "unknown" %}
 # TODO: Verify whether recovery is dedicated, in boot, or in vendor_boot.
 {% endif %}
@@ -39,12 +39,12 @@ TARGET_2ND_CPU_ABI := {{ device_info.second_arch.cpu_abi }}
 TARGET_2ND_CPU_ABI2 := {{ device_info.second_arch.cpu_abi2 }}
 TARGET_2ND_CPU_VARIANT := generic
 TARGET_2ND_CPU_VARIANT_RUNTIME := {{ device_info.second_cpu_variant }}
-
 {% endif %}
+
 {% if device_info.arch.bitness != 64 %}
 TARGET_USES_64_BIT_BINDER := true
-
 {% endif %}
+
 # APEX
 {% if device_info.device_uses_updatable_apex %}
 DEXPREOPT_GENERATE_APEX_IMAGE := true
@@ -66,13 +66,13 @@ TARGET_SCREEN_DENSITY := {{ device_info.screen_density }}
 {% if device_info.use_vulkan %}
 TARGET_USES_VULKAN := true
 {% endif %}
-
 {% endif %}
-# Kernel
+
+# Kernel / boot image metadata
 {% if image_info.header_version != "0" %}
 BOARD_BOOTIMG_HEADER_VERSION := {{ image_info.header_version }}
 {% endif %}
-{% if image_info.base_address %}
+{% if image_info.base_address is not none %}
 BOARD_KERNEL_BASE := {{ image_info.base_address }}
 {% endif %}
 {% if image_info.cmdline %}
@@ -81,21 +81,22 @@ BOARD_KERNEL_CMDLINE := {{ image_info.cmdline }}
 {% if image_info.pagesize %}
 BOARD_KERNEL_PAGESIZE := {{ image_info.pagesize }}
 {% endif %}
-{% if image_info.ramdisk_offset %}
+{% if image_info.ramdisk_offset is not none %}
 BOARD_RAMDISK_OFFSET := {{ image_info.ramdisk_offset }}
 {% endif %}
-{% if image_info.tags_offset %}
+{% if image_info.tags_offset is not none %}
 BOARD_KERNEL_TAGS_OFFSET := {{ image_info.tags_offset }}
 {% endif %}
 {% if image_info.header_version != "0" %}
 BOARD_MKBOOTIMG_ARGS += --header_version $(BOARD_BOOTIMG_HEADER_VERSION)
 {% endif %}
-{% if image_info.ramdisk_offset %}
+{% if image_info.ramdisk_offset is not none %}
 BOARD_MKBOOTIMG_ARGS += --ramdisk_offset $(BOARD_RAMDISK_OFFSET)
 {% endif %}
-{% if image_info.tags_offset %}
+{% if image_info.tags_offset is not none %}
 BOARD_MKBOOTIMG_ARGS += --tags_offset $(BOARD_KERNEL_TAGS_OFFSET)
 {% endif %}
+
 BOARD_KERNEL_IMAGE_NAME := Image
 {% if image_info.dt %}
 BOARD_KERNEL_SEPARATED_DT := true
@@ -115,22 +116,22 @@ TARGET_FORCE_PREBUILT_KERNEL := true
 ifeq ($(TARGET_FORCE_PREBUILT_KERNEL),true)
 TARGET_PREBUILT_KERNEL := $(DEVICE_PATH)/prebuilt/kernel
 {% else %}
-# No kernel was present in the input image; supply a verified kernel source
-# or prebuilt before attempting a build.
+# No kernel was supplied/extracted. Add the matching boot.img using --boot-image
+# or provide a verified kernel source before building.
 {% endif %}
 {% if image_info.kernel and image_info.dt %}
 TARGET_PREBUILT_DT := $(DEVICE_PATH)/prebuilt/dt.img
 BOARD_MKBOOTIMG_ARGS += --dt $(TARGET_PREBUILT_DT)
-BOARD_KERNEL_SEPARATED_DT := 
+BOARD_KERNEL_SEPARATED_DT :=
 {% endif %}
 {% if image_info.kernel and image_info.dtb %}
 TARGET_PREBUILT_DTB := $(DEVICE_PATH)/prebuilt/dtb.img
 BOARD_MKBOOTIMG_ARGS += --dtb $(TARGET_PREBUILT_DTB)
-BOARD_INCLUDE_DTB_IN_BOOTIMG := 
+BOARD_INCLUDE_DTB_IN_BOOTIMG :=
 {% endif %}
 {% if image_info.kernel and image_info.dtbo %}
 BOARD_PREBUILT_DTBOIMAGE := $(DEVICE_PATH)/prebuilt/dtbo.img
-BOARD_KERNEL_SEPARATED_DTBO := 
+BOARD_KERNEL_SEPARATED_DTBO :=
 {% endif %}
 {% if image_info.kernel %}
 endif
@@ -141,7 +142,7 @@ endif
 BOARD_BUILD_SYSTEM_ROOT_IMAGE := true
 {% endif %}
 {% if image_info.pagesize %}
-BOARD_FLASH_BLOCK_SIZE := {{ image_info.pagesize|int * 64 }} # (BOARD_KERNEL_PAGESIZE * 64)
+BOARD_FLASH_BLOCK_SIZE := {{ image_info.pagesize|int * 64 }} # page size * 64
 {% endif %}
 # Only verified partition sizes may be emitted. Input image length is not
 # necessarily equal to its partition size.
@@ -155,6 +156,7 @@ BOARD_RECOVERYIMAGE_PARTITION_SIZE := {{ next_options.recovery_size }}
 {% elif recovery_layout == "dedicated" %}
 # TODO: Verify dedicated recovery partition size.
 {% endif %}
+
 BOARD_HAS_LARGE_FILESYSTEM := true
 {% if skeleton == "omni" %}
 # Legacy defaults; verify against the stock fstab.
@@ -166,6 +168,7 @@ BOARD_VENDORIMAGE_FILE_SYSTEM_TYPE := ext4
 # fstab (ERoFS, ext4 and F2FS are not interchangeable).
 {% endif %}
 TARGET_COPY_OUT_VENDOR := vendor
+
 {% if device_info.device_uses_dynamic_partitions %}
 # Dynamic partitions detected; never guess super metadata/geometry.
 {% if dynamic_partition_names %}
@@ -181,7 +184,7 @@ BOARD_{{ device_info.manufacturer|upper }}_DYNAMIC_PARTITIONS_SIZE := {{ next_op
 # building a super image. Retrofit dynamic partitions need separate review.
 {% endif %}
 {% endif %}
-{% if image_info.ramdisk_compression == "lzma" %}
+{% if "lzma" in image_info.ramdisk_compression %}
 LZMA_RAMDISK_TARGETS := recovery
 {% endif %}
 
