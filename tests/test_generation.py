@@ -116,6 +116,9 @@ class GenerationTests(unittest.TestCase):
             self.assertTrue((tree / "twrp_beyond2lte.mk").is_file())
             self.assertFalse((tree / "omni_beyond2lte.mk").exists())
             self.assertFalse((tree / "vendorsetup.sh").exists())
+            self.assertIn(
+                "recovery/stock-root/",
+                (tree / ".gitignore").read_text())
             self.assertEqual((tree / "prebuilt/kernel").read_bytes(), b"stub-kernel")
             self.assertIn("twrp-14.1", (tree / "README.md").read_text())
             # The complete stock ramdisk is preserved for audit/reuse, while
