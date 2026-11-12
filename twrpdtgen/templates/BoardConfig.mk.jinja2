@@ -69,10 +69,72 @@ TARGET_USES_VULKAN := true
 {% endif %}
 
 # Kernel / boot image metadata
+{% if image_info.source_images is defined %}
+# Modern split boot layout parsed from stock images.
+{% if image_info.boot_header_version %}
+BOARD_BOOT_HEADER_VERSION := {{ image_info.boot_header_version }}
+BOARD_MKBOOTIMG_ARGS += --header_version $(BOARD_BOOT_HEADER_VERSION)
+{% endif %}
+{% if image_info.init_boot_header_version %}
+BOARD_INIT_BOOT_HEADER_VERSION := {{ image_info.init_boot_header_version }}
+BOARD_USES_INIT_BOOT_IMAGE := true
+BOARD_USES_GENERIC_KERNEL_IMAGE := true
+BOARD_MKBOOTIMG_INIT_ARGS += --header_version $(BOARD_INIT_BOOT_HEADER_VERSION)
+{% endif %}
+{% if image_info.vendor_boot_header_version %}
+BOARD_VENDOR_BOOT_HEADER_VERSION := {{ image_info.vendor_boot_header_version }}
+BOARD_USES_VENDOR_BOOTIMAGE := true
+BOARD_BUILD_VENDOR_BOOT_IMAGE := true
+{% endif %}
+{% if recovery_layout == "vendor_boot" %}
+BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT := true
+BOARD_INCLUDE_RECOVERY_RAMDISK_IN_VENDOR_BOOT := true
+{% endif %}
+{% if image_info.base_address is not none %}
+BOARD_KERNEL_BASE := {{ image_info.base_address }}
+{% endif %}
+{% if image_info.kernel_offset is not none %}
+BOARD_KERNEL_OFFSET := {{ image_info.kernel_offset }}
+BOARD_MKBOOTIMG_ARGS += --kernel_offset $(BOARD_KERNEL_OFFSET)
+{% endif %}
+{% if image_info.cmdline %}
+BOARD_KERNEL_CMDLINE := {{ image_info.cmdline }}
+{% endif %}
+{% if image_info.vendor_cmdline %}
+BOARD_VENDOR_CMDLINE := {{ image_info.vendor_cmdline }}
+{% endif %}
+{% if image_info.pagesize %}
+BOARD_PAGE_SIZE := {{ image_info.pagesize }}
+BOARD_KERNEL_PAGESIZE := {{ image_info.pagesize }}
+{% endif %}
+{% if image_info.ramdisk_offset is not none %}
+BOARD_RAMDISK_OFFSET := {{ image_info.ramdisk_offset }}
+BOARD_MKBOOTIMG_ARGS += --ramdisk_offset $(BOARD_RAMDISK_OFFSET)
+{% endif %}
+{% if image_info.tags_offset is not none %}
+BOARD_KERNEL_TAGS_OFFSET := {{ image_info.tags_offset }}
+BOARD_MKBOOTIMG_ARGS += --tags_offset $(BOARD_KERNEL_TAGS_OFFSET)
+{% endif %}
+{% if image_info.dtb_offset is not none %}
+BOARD_DTB_OFFSET := {{ image_info.dtb_offset }}
+BOARD_MKBOOTIMG_ARGS += --dtb_offset $(BOARD_DTB_OFFSET)
+{% endif %}
+{% if image_info.dtb %}
+# AOSP's BOARD_INCLUDE_DTB_IN_BOOTIMG flag also drives DTB inclusion while
+# building vendor_boot on modern branches.
+BOARD_INCLUDE_DTB_IN_BOOTIMG := true
+BOARD_MKBOOTIMG_ARGS += --dtb $(DEVICE_PATH)/prebuilt/dtb.img
+{% endif %}
+{% if image_info.bootconfig %}
+BOARD_VENDOR_BOOTCONFIG := $(DEVICE_PATH)/prebuilt/bootconfig
+BOARD_MKBOOTIMG_ARGS += --vendor_bootconfig $(BOARD_VENDOR_BOOTCONFIG)
+{% endif %}
+{% else %}
+# Legacy boot image layout.
 {% if image_info.header_version != "0" %}
 BOARD_BOOTIMG_HEADER_VERSION := {{ image_info.header_version }}
 {% endif %}
-{% if image_info.base_address is not none %}
+{% if image_info.base_address %}
 BOARD_KERNEL_BASE := {{ image_info.base_address }}
 {% endif %}
 {% if image_info.cmdline %}
@@ -81,20 +143,21 @@ BOARD_KERNEL_CMDLINE := {{ image_info.cmdline }}
 {% if image_info.pagesize %}
 BOARD_KERNEL_PAGESIZE := {{ image_info.pagesize }}
 {% endif %}
-{% if image_info.ramdisk_offset is not none %}
+{% if image_info.ramdisk_offset %}
 BOARD_RAMDISK_OFFSET := {{ image_info.ramdisk_offset }}
 {% endif %}
-{% if image_info.tags_offset is not none %}
+{% if image_info.tags_offset %}
 BOARD_KERNEL_TAGS_OFFSET := {{ image_info.tags_offset }}
 {% endif %}
 {% if image_info.header_version != "0" %}
 BOARD_MKBOOTIMG_ARGS += --header_version $(BOARD_BOOTIMG_HEADER_VERSION)
 {% endif %}
-{% if image_info.ramdisk_offset is not none %}
+{% if image_info.ramdisk_offset %}
 BOARD_MKBOOTIMG_ARGS += --ramdisk_offset $(BOARD_RAMDISK_OFFSET)
 {% endif %}
-{% if image_info.tags_offset is not none %}
+{% if image_info.tags_offset %}
 BOARD_MKBOOTIMG_ARGS += --tags_offset $(BOARD_KERNEL_TAGS_OFFSET)
+{% endif %}
 {% endif %}
 
 BOARD_KERNEL_IMAGE_NAME := Image
@@ -119,17 +182,17 @@ TARGET_PREBUILT_KERNEL := $(DEVICE_PATH)/prebuilt/kernel
 # No kernel was supplied/extracted. Add the matching boot.img using --boot-image
 # or provide a verified kernel source before building.
 {% endif %}
-{% if image_info.kernel and image_info.dt %}
+{% if image_info.kernel and image_info.dt and image_info.source_images is not defined %}
 TARGET_PREBUILT_DT := $(DEVICE_PATH)/prebuilt/dt.img
 BOARD_MKBOOTIMG_ARGS += --dt $(TARGET_PREBUILT_DT)
 BOARD_KERNEL_SEPARATED_DT :=
 {% endif %}
-{% if image_info.kernel and image_info.dtb %}
+{% if image_info.kernel and image_info.dtb and image_info.source_images is not defined %}
 TARGET_PREBUILT_DTB := $(DEVICE_PATH)/prebuilt/dtb.img
 BOARD_MKBOOTIMG_ARGS += --dtb $(TARGET_PREBUILT_DTB)
 BOARD_INCLUDE_DTB_IN_BOOTIMG :=
 {% endif %}
-{% if image_info.kernel and image_info.dtbo %}
+{% if image_info.kernel and image_info.dtbo and image_info.source_images is not defined %}
 BOARD_PREBUILT_DTBOIMAGE := $(DEVICE_PATH)/prebuilt/dtbo.img
 BOARD_KERNEL_SEPARATED_DTBO :=
 {% endif %}
