@@ -5,6 +5,7 @@
 from dataclasses import dataclass, field
 import fnmatch
 import json
+import os
 from pathlib import Path, PurePosixPath
 import shutil
 import stat
@@ -83,7 +84,11 @@ def _ensure_real_directory(path: Path):
             directory.mkdir()
 
 
-def _copy_one(source: Path, destination: Path, report: RamdiskCopyReport):
+def _copy_one(
+        source: Path,
+        destination: Path,
+        report: RamdiskCopyReport,
+        prefer_hardlink: bool = False):
     """Copy a regular file/directory/symlink without following source symlinks."""
     info = source.lstat()
     mode = info.st_mode
@@ -120,7 +125,15 @@ def _copy_one(source: Path, destination: Path, report: RamdiskCopyReport):
             destination.unlink()
         elif destination.exists() and destination.is_dir():
             shutil.rmtree(destination)
-        shutil.copy2(source, destination, follow_symlinks=False)
+        elif destination.exists():
+            destination.unlink()
+        if prefer_hardlink:
+            try:
+                os.link(source, destination, follow_symlinks=False)
+            except OSError:
+                shutil.copy2(source, destination, follow_symlinks=False)
+        else:
+            shutil.copy2(source, destination, follow_symlinks=False)
         report.copied_files.append(destination.as_posix())
         return
     report.skipped_special.append(destination.as_posix())
@@ -129,7 +142,8 @@ def _copy_one(source: Path, destination: Path, report: RamdiskCopyReport):
 def copy_ramdisk_tree(
         source: Path,
         destination: Path,
-        include=None) -> RamdiskCopyReport:
+        include=None,
+        prefer_hardlink: bool = False) -> RamdiskCopyReport:
     """Copy an extracted ramdisk safely and quickly.
 
     include receives a POSIX relative path and may reject entries. Directories
@@ -154,11 +168,15 @@ def copy_ramdisk_tree(
             if stat.S_ISDIR(info.st_mode) and not stat.S_ISLNK(info.st_mode):
                 stack.append((entry, relative))
                 if include is None or include(rel_name + "/"):
-                    _copy_one(entry, destination / relative, report)
+                    _copy_one(
+                        entry, destination / relative, report,
+                        prefer_hardlink=prefer_hardlink)
                 continue
             if include is not None and not include(rel_name):
                 continue
-            _copy_one(entry, destination / relative, report)
+            _copy_one(
+                entry, destination / relative, report,
+                prefer_hardlink=prefer_hardlink)
 
     # Keep manifests deterministic and portable: record paths relative to the
     # generated ramdisk root rather than machine-specific output directories.
@@ -223,7 +241,9 @@ def materialize_recovery_skeleton(
     for source in sources:
         _merge_report(
             stock_report,
-            copy_ramdisk_tree(source, stock_root))
+            copy_ramdisk_tree(
+                source, stock_root,
+                prefer_hardlink=True))
         _merge_report(
             overlay_report,
             copy_ramdisk_tree(
