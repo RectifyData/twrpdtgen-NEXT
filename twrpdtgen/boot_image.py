@@ -67,6 +67,9 @@ class ParsedImage:
     source: Path
     kind: str
     header_version: str
+    boot_header_version: Optional[str]
+    init_boot_header_version: Optional[str]
+    vendor_boot_header_version: Optional[str]
     pagesize: int
     origsize: int
     ramdisk: Optional[Path] = None
@@ -110,6 +113,7 @@ class CombinedImageInfo:
     base_address: Optional[int]
     kernel_offset: Optional[int]
     cmdline: str
+    vendor_cmdline: str
     ramdisk_offset: Optional[int]
     tags_offset: Optional[int]
     dtb_offset: Optional[int]
@@ -602,6 +606,9 @@ class ModernImageManager:
 
         primary = self.parsed[0]
         vendor = by_kind.get("vendor_boot")
+        boot = by_kind.get("boot") or by_kind.get("recovery")
+        init_boot_image = by_kind.get("init_boot")
+        boot_source = boot or init_boot_image or primary
         kernel = next(
             (item.kernel for item in self.parsed if item.kernel),
             None)
@@ -623,7 +630,7 @@ class ModernImageManager:
         if not roots:
             raise ImageFormatError(
                 "No extractable ramdisk found in supplied images")
-        header_source = vendor or primary
+        address_source = vendor or boot_source
         layout_hint = (
             vendor.recovery_layout_hint
             if vendor and vendor.recovery_layout_hint
@@ -633,33 +640,46 @@ class ModernImageManager:
                  if item.recovery_layout_hint),
                 None))
         return CombinedImageInfo(
-            self.parsed,
-            primary,
-            roots,
-            recovery_roots,
-            roots[-1],
-            kernel,
-            None,
-            vendor.dtb if vendor else None,
-            None,
-            vendor.bootconfig if vendor else None,
-            header_source.header_version,
-            header_source.pagesize,
-            primary.origsize,
-            header_source.base_address,
-            header_source.kernel_offset,
-            header_source.cmdline,
-            header_source.ramdisk_offset,
-            header_source.tags_offset,
-            vendor.dtb_offset if vendor else None,
-            ";".join(
+            source_images=self.parsed,
+            primary=primary,
+            ramdisk_roots=roots,
+            recovery_ramdisk_roots=recovery_roots,
+            ramdisk=roots[-1],
+            kernel=kernel,
+            dt=None,
+            dtb=vendor.dtb if vendor else None,
+            dtbo=None,
+            bootconfig=vendor.bootconfig if vendor else None,
+            header_version=boot_source.header_version,
+            boot_header_version=(
+                boot.header_version if boot
+                else (init_boot_image.header_version
+                      if init_boot_image else None)),
+            init_boot_header_version=(
+                init_boot_image.header_version
+                if init_boot_image else None),
+            vendor_boot_header_version=(
+                vendor.header_version if vendor else None),
+            pagesize=(
+                vendor.pagesize if vendor
+                else boot_source.pagesize),
+            origsize=primary.origsize,
+            base_address=address_source.base_address,
+            kernel_offset=address_source.kernel_offset,
+            cmdline=boot_source.cmdline,
+            vendor_cmdline=vendor.cmdline if vendor else "",
+            ramdisk_offset=address_source.ramdisk_offset,
+            tags_offset=address_source.tags_offset,
+            dtb_offset=vendor.dtb_offset if vendor else None,
+            ramdisk_compression=";".join(
                 item.ramdisk_compression
                 for item in self.parsed),
-            None,
-            primary.kind,
-            vendor.product_name if vendor else "",
-            vendor.vendor_ramdisk_fragments if vendor else [],
-            layout_hint)
+            sigtype=None,
+            kind=primary.kind,
+            product_name=vendor.product_name if vendor else "",
+            vendor_ramdisk_fragments=(
+                vendor.vendor_ramdisk_fragments if vendor else []),
+            recovery_layout_hint=layout_hint)
 
     def manifest(self):
         return {
