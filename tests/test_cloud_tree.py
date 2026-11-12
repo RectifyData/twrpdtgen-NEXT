@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from pathlib import Path
+import os
+import stat
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -26,6 +28,51 @@ class CloudTreeTests(unittest.TestCase):
             self.assertTrue(archive.is_file())
             with zipfile.ZipFile(archive) as bundle:
                 self.assertIn("samsung/a20s/BoardConfig.mk", bundle.namelist())
+
+    def test_archive_preserves_symlinks_and_excludes_stock_root(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            tree = root / "out" / "samsung" / "a20s"
+            recovery = tree / "recovery" / "root"
+            stock = tree / "recovery" / "stock-root"
+            recovery.mkdir(parents=True)
+            stock.mkdir(parents=True)
+            target = recovery / "prop.default"
+            target.write_text("ro.test=1\n", encoding="utf-8")
+            link = recovery / "default.prop"
+            try:
+                link.symlink_to("prop.default")
+            except OSError as exc:
+                self.skipTest(f"symlink creation unavailable: {exc}")
+            (stock / "secret.bin").write_bytes(b"stock")
+
+            archive = _archive_tree(tree, root / "result.zip")
+            with zipfile.ZipFile(archive) as bundle:
+                names = set(bundle.namelist())
+                self.assertNotIn(
+                    "samsung/a20s/recovery/stock-root/secret.bin",
+                    names,
+                )
+                info = bundle.getinfo(
+                    "samsung/a20s/recovery/root/default.prop"
+                )
+                mode = (info.external_attr >> 16) & 0xFFFF
+                self.assertTrue(stat.S_ISLNK(mode))
+                self.assertEqual(
+                    bundle.read(info).decode("utf-8"),
+                    "prop.default",
+                )
+
+            archive_with_stock = _archive_tree(
+                tree,
+                root / "with-stock.zip",
+                include_stock_root=True,
+            )
+            with zipfile.ZipFile(archive_with_stock) as bundle:
+                self.assertIn(
+                    "samsung/a20s/recovery/stock-root/secret.bin",
+                    bundle.namelist(),
+                )
 
     def test_end_to_end_cloud_tree_pipeline_uses_one_firmware_download(self):
         with tempfile.TemporaryDirectory() as temp:
