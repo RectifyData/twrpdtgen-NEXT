@@ -119,12 +119,15 @@ then forwards arguments to the normal CLI.
 !bash launcher.sh
 ~~~
 
-After uploading images into the Colab session, generate from a dedicated
-recovery image:
+After uploading an image that contains the recovery ramdisk, the normal form is:
 
 ~~~bash
-!bash launcher.sh /content/recovery.img -o /content/output
+!./launcher.sh /content/recovery.img -o /content/output
 ~~~
+
+The `-o` / `--output` directory is created automatically when it does not
+exist. The same syntax works for recovery-as-boot images when the correct
+recovery layout is detected or supplied.
 
 For a modern split GKI layout:
 
