@@ -74,6 +74,11 @@ python3 -m twrpdtgen.cloud_tree \
 The full firmware ZIP is deleted from the cloud by default after a successful
 run.
 
+The downloadable device-tree ZIP excludes `recovery/stock-root/` by default and
+preserves Unix symlink metadata. The full stock extraction remains available in
+the Colab workspace for audit; opt in with `--include-stock-root` only when it is
+actually needed.
+
 For the easiest workflow, open
 **[colab/cloud_firmware_slice.ipynb](colab/cloud_firmware_slice.ipynb)** in
 Google Colab. It now exposes **Generate TWRP device tree** and
