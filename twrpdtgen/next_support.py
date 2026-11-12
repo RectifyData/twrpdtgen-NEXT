@@ -297,16 +297,20 @@ def format_twrp_fstab(fstab, *, system_as_root: bool = False) -> str:
 
 
 def detect_brightness_policy(ramdisk_or_roots):
-    """Infer a recovery brightness path/default only from explicit stock init writes.
+    """Infer recovery brightness settings from explicit stock init writes.
 
-    TWRP can discover max_brightness at runtime, so we deliberately do not
-    guess it. If stock init writes more than one distinct brightness node,
-    return no policy rather than selecting one arbitrarily.
+    The path is emitted only when one brightness node is unambiguous across the
+    selected recovery payload. A default value is emitted only when startup
+    actions (early-init/init/boot) agree on one positive numeric value. Writes
+    from shutdown or property-triggered actions never become defaults.
     """
     matches = []
     pattern = re.compile(
         r"^\s*write\s+(\S*/brightness)\s+(\d+)\s*(?:#.*)?$"
     )
+    trigger_pattern = re.compile(r"^\s*on\s+(.+?)\s*$")
+    startup_triggers = {"early-init", "init", "boot"}
+
     for root in _ramdisk_roots(ramdisk_or_roots):
         candidates = list(root.glob("init*.rc"))
         for relative in (
@@ -316,26 +320,47 @@ def detect_brightness_policy(ramdisk_or_roots):
             folder = root / relative
             if folder.is_dir():
                 candidates.extend(folder.rglob("*.rc"))
+
         seen = set()
         for path in candidates:
             path = Path(path)
             if path in seen or not path.is_file():
                 continue
             seen.add(path)
+            current_trigger = None
             for line in path.read_text(
                     encoding="utf-8",
                     errors="replace").splitlines():
+                trigger = trigger_pattern.match(line)
+                if trigger:
+                    current_trigger = trigger.group(1).strip()
+                    continue
                 match = pattern.match(line)
                 if not match:
                     continue
-                brightness_path, value = match.groups()
+                brightness_path, raw_value = match.groups()
                 if not brightness_path.startswith("/sys/"):
                     continue
-                matches.append((brightness_path, int(value)))
+                matches.append((
+                    brightness_path,
+                    int(raw_value),
+                    current_trigger,
+                ))
 
-    unique_paths = {path for path, _ in matches}
+    unique_paths = {path for path, _, _ in matches}
     if len(unique_paths) != 1:
         return None, None
+
     path = next(iter(unique_paths))
-    values = [value for candidate, value in matches if candidate == path]
-    return path, values[-1] if values else None
+    startup_values = {
+        value
+        for candidate, value, trigger in matches
+        if (
+            candidate == path
+            and trigger in startup_triggers
+            and value > 0
+        )
+    }
+    default = next(iter(startup_values)) if len(startup_values) == 1 else None
+    return path, default
+
