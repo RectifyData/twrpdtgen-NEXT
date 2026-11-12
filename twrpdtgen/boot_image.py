@@ -78,6 +78,7 @@ class ParsedImage:
     dtbo: Optional[Path] = None
     bootconfig: Optional[Path] = None
     base_address: Optional[int] = None
+    kernel_offset: Optional[int] = None
     cmdline: str = ""
     ramdisk_offset: Optional[int] = None
     tags_offset: Optional[int] = None
@@ -107,6 +108,7 @@ class CombinedImageInfo:
     pagesize: int
     origsize: int
     base_address: Optional[int]
+    kernel_offset: Optional[int]
     cmdline: str
     ramdisk_offset: Optional[int]
     tags_offset: Optional[int]
@@ -213,20 +215,27 @@ def decompress_ramdisk(data):
             if executable is None:
                 raise ImageFormatError(
                     "Zstandard ramdisk detected; install the zstd command")
-            process = subprocess.Popen(
-                [executable, "-q", "-d", "-c"],
-                stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL)
-            assert process.stdin is not None and process.stdout is not None
-            process.stdin.write(data)
-            process.stdin.close()
-            raw = process.stdout.read(MAX_RAMDISK_BYTES + 1)
-            if len(raw) > MAX_RAMDISK_BYTES:
-                process.kill()
-                process.wait()
-                raise ImageFormatError("Ramdisk exceeds extraction safety limit")
-            if process.wait() != 0:
-                raise ImageFormatError("zstd failed to decompress ramdisk")
+            # Feed zstd from a regular file rather than a stdin pipe. This lets
+            # us cap stdout while zstd reads independently, avoiding a pipe
+            # deadlock and preventing unbounded in-memory decompression.
+            with tempfile.TemporaryDirectory(
+                    prefix="twrpdtgen-zstd-") as temporary:
+                compressed = Path(temporary) / "ramdisk.zst"
+                compressed.write_bytes(data)
+                process = subprocess.Popen(
+                    [executable, "-q", "-d", "-c", str(compressed)],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.DEVNULL)
+                assert process.stdout is not None
+                raw = process.stdout.read(MAX_RAMDISK_BYTES + 1)
+                if len(raw) > MAX_RAMDISK_BYTES:
+                    process.kill()
+                    process.wait()
+                    raise ImageFormatError(
+                        "Ramdisk exceeds extraction safety limit")
+                if process.wait() != 0:
+                    raise ImageFormatError(
+                        "zstd failed to decompress ramdisk")
             kind = "zstd"
         else:
             raw, kind = lzma.decompress(data, format=lzma.FORMAT_ALONE), "lzma"
@@ -514,6 +523,7 @@ def _parse_vendor_boot(path, output):
         dtb=dtb,
         bootconfig=bootconfig,
         base_address=0,
+        kernel_offset=kernel_addr,
         cmdline=cmdline,
         ramdisk_offset=ramdisk_addr,
         tags_offset=tags_addr,
@@ -637,6 +647,7 @@ class ModernImageManager:
             header_source.pagesize,
             primary.origsize,
             header_source.base_address,
+            header_source.kernel_offset,
             header_source.cmdline,
             header_source.ramdisk_offset,
             header_source.tags_offset,
@@ -661,6 +672,10 @@ class ModernImageManager:
                 "image_size": item.origsize,
                 "cmdline": item.cmdline,
                 "product_name": item.product_name,
+                "base_address": item.base_address,
+                "kernel_offset": item.kernel_offset,
+                "ramdisk_offset": item.ramdisk_offset,
+                "tags_offset": item.tags_offset,
                 "dtb_offset": item.dtb_offset,
                 "has_kernel": item.kernel is not None,
                 "has_dtb": item.dtb is not None,
