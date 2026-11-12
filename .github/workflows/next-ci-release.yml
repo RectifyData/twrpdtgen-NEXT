@@ -16,8 +16,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Install test renderer
-        run: python -m pip install 'Jinja2>=3.1,<4'
+      - name: Install test dependencies
+        run: python -m pip install 'Jinja2>=3.1,<4' 'lz4>=4.3,<5'
       - name: Compile Python
         run: python -m compileall -q twrpdtgen tests
       - name: Run unit regression checks
@@ -33,17 +33,18 @@ jobs:
       - uses: actions/checkout@v4
       - name: Publish source-only prerelease
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: \${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          tag="next-skeletons-v0.1.0"
+          version="$(python -c 'from twrpdtgen import __version__; print(__version__)')"
+          tag="next-v\${version}"
           if gh release view "$tag" >/dev/null 2>&1; then
             echo "Release $tag already exists"
             exit 0
           fi
           gh release create "$tag" \
             --target "$GITHUB_SHA" \
-            --title "twrpdtgen-NEXT skeletons v0.1.0 (source preview)" \
+            --title "twrpdtgen-NEXT \${version} (source preview)" \
             --notes-file docs/release-notes.md \
             --prerelease

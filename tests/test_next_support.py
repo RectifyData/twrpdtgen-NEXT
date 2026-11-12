@@ -25,6 +25,23 @@ class NextSupportTests(unittest.TestCase):
             prop.write_text("ro.build.version.sdk=35\n")
             self.assertEqual(detect_android_api(Path(temp)), 35)
 
+    def test_split_ramdisk_metadata_search(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            generic = root / "generic"
+            vendor = root / "vendor-root"
+            generic.mkdir()
+            vendor.mkdir()
+            (generic / "prop.default").write_text(
+                "ro.build.version.sdk=35\n")
+            (vendor / "etc").mkdir()
+            expected = vendor / "etc/recovery.fstab"
+            expected.write_text("# split fstab\n")
+            self.assertEqual(
+                detect_android_api([generic, vendor]), 35)
+            self.assertEqual(
+                find_recovery_fstab([vendor, generic]), expected)
+
     def test_first_stage_fstab(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

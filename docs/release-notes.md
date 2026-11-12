@@ -1,11 +1,19 @@
-# twrpdtgen-NEXT skeleton and safety preview
+# twrpdtgen-NEXT 3.1.0a2 — Android 13–16 image extraction preview
 
-- Added modern `twrp-12.1` and `twrp-14.1` product skeleton profiles.
-- Added explicit recovery-layout and partition-size options.
-- Removed dangerous hardcoded super partition geometry, synthetic patch
-  levels, blanket AVB-disabling flags, and upstream test-signing defaults.
-- Fixed duplicate dynamic-partition enumeration and silent tree deletion.
-- Added regression checks in CI and documented current GKI limitations.
+This prerelease removes the earlier "skeleton only" limitation for modern
+split boot layouts.
 
-**Experimental source generator release only.** No boot/recovery image is
-included or asserted bootable. Review every generated device tree before use.
+- Native parsing for AOSP boot/recovery header v3/v4.
+- Android 13+ init_boot v4 generic-ramdisk extraction.
+- vendor_boot v3/v4 parsing, DTB extraction, bootconfig extraction, and v4
+  vendor ramdisk table support.
+- PLATFORM, RECOVERY, DLKM and unnamed vendor ramdisk fragments.
+- Combined boot + init_boot + vendor_boot metadata for tree generation.
+- Safe newc CPIO extraction plus LZ4 legacy/frame support.
+- Persistent \`--extract-only\` and \`--extract-to\` workflows with
+  machine-readable \`manifest.json\`.
+- Split-ramdisk property and recovery-fstab discovery.
+- Synthetic header-v3/v4 regression fixtures; CI needs no proprietary firmware.
+
+**Experimental source generator prerelease.** Image parser tests validate
+container handling, not recovery bootability on physical hardware.

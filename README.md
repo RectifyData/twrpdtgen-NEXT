@@ -1,80 +1,103 @@
 # twrpdtgen-NEXT
 
-A safety-oriented evolution of [twrpdtgen](https://github.com/twrpdtgen/twrpdtgen)
-for generating **candidate TWRP device-tree skeletons** from stock
-`recovery.img` and compatible `boot.img` ramdisks.
+A modernized, safety-oriented evolution of
+[twrpdtgen](https://github.com/twrpdtgen/twrpdtgen) for generating candidate
+TWRP device-tree skeletons from classic and split Android boot images.
 
-NEXT adds version-selectable product skeletons, defensive output handling,
-safer metadata generation, and a validation baseline. **A generated tree is
-not a working recovery until compiled and tested on the actual device.**
+## Modern Android image support
+
+NEXT parses the current AOSP boot-image structures used by Android 13–16:
+
+- boot/recovery header v3 and v4
+- \`init_boot.img\` v4 generic ramdisk
+- \`vendor_boot.img\` v3 and v4
+- vendor_boot v4 ramdisk tables, including PLATFORM, RECOVERY and DLKM fragments
+- vendor DTB and v4 bootconfig extraction
+- split-image composition: boot + init_boot + vendor_boot
+- gzip, bzip2, XZ/LZMA, LZ4 frame, LZ4 legacy, and raw newc ramdisks
+- Zstandard ramdisks when the host \`zstd\` command is installed
+
+The CPIO extractor rejects parent/absolute paths and does not create device
+nodes, sockets or FIFOs on the host. Image/table offsets are bounds-checked
+before extraction.
+
+### Extract only
+
+\`\`\`bash
+python3 -m twrpdtgen init_boot.img \
+  --vendor-boot vendor_boot.img \
+  --boot-image boot.img \
+  --extract-only extracted-images
+\`\`\`
+
+The destination contains raw image components, expanded ramdisk roots, and
+\`manifest.json\` with parsed header geometry and the vendor ramdisk table.
+
+### Generate a modern device tree
+
+\`\`\`bash
+python3 -m twrpdtgen init_boot.img \
+  --vendor-boot vendor_boot.img \
+  --boot-image boot.img \
+  --skeleton twrp-14.1
+\`\`\`
+
+If vendor_boot v4 contains a RECOVERY ramdisk fragment, NEXT prioritizes it for
+recovery fstab discovery and identifies the recovery layout as \`vendor_boot\`.
+Generic and vendor ramdisk properties are considered together instead of being
+treated as one physical archive.
+
+Use \`--extract-to DIR\` to keep parsed components while also generating a tree.
 
 ## Skeletons
 
-| Mode | Product | Recovery common config | Suggested source |
+| Mode | Product | Common config | Typical source |
 |---|---|---|---|
-| `omni` | `omni_<codename>` | `vendor/omni/config/common.mk` | Legacy Omni-based TWRP |
-| `twrp-12.1` | `twrp_<codename>` | `vendor/twrp/config/common.mk` | TWRP 12.1 |
-| `twrp-14.1` | `twrp_<codename>` | `vendor/twrp/config/common.mk` | TWRP 14.1 |
-| `auto` | Based on stock API | Based on stock API | SDK >=34: 14.1, SDK 31–33: 12.1, otherwise legacy |
-
-Auto mode only reads Android API data from stock ramdisk properties; it does
-not infer the running host's Android version. If the API cannot be read,
-auto selects legacy. Override with `--skeleton` if you verified the device.
+| \`omni\` | \`omni_<codename>\` | \`vendor/omni/config/common.mk\` | legacy TWRP |
+| \`twrp-12.1\` | \`twrp_<codename>\` | \`vendor/twrp/config/common.mk\` | TWRP 12.1 |
+| \`twrp-14.1\` | \`twrp_<codename>\` | \`vendor/twrp/config/common.mk\` | TWRP 14.1 |
+| \`auto\` | firmware SDK based | firmware SDK based | SDK >=34: 14.1; SDK 31–33: 12.1 |
 
 ## Installation
 
-Requires Python >=3.8, `cpio` on Linux, and the dependencies in
-`pyproject.toml`.
+Requires Python 3.8 or later.
 
-```bash
+\`\`\`bash
 python3 -m pip install .
-python3 -m twrpdtgen recovery.img --skeleton twrp-14.1
-```
+python3 -m twrpdtgen --help
+\`\`\`
 
-For a verified A/B layout with recovery inside boot:
+The legacy AIK path may still require host tools such as \`cpio\`. Modern
+vendor_boot/init_boot parsing is native Python except for optional Zstandard
+decompression.
 
-```bash
-python3 -m twrpdtgen boot.img \
-  --skeleton twrp-12.1 --recovery-layout boot \
-  --boot-size 67108864
-```
+## Partition metadata
 
-For a device with dynamic partitions and **confirmed** sizes from GPT and
-`lpdump` (example values are illustrative, not device measurements):
+Partition sizes are never inferred from compressed image lengths. Supply
+verified values from GPT/lpdump when needed:
 
-```bash
-python3 -m twrpdtgen recovery.img --skeleton twrp-14.1 \
-  --super-size 9126805504 --dynamic-group-size 9122611200
-```
+\`\`\`bash
+python3 -m twrpdtgen recovery.img \
+  --super-size 9126805504 \
+  --dynamic-group-size 9122611200
+\`\`\`
 
-Sizes are **byte counts**, aligned to 4096 bytes. Missing sizes produce
-TODO comments, never invented dimensions. Output is
-`output/<manufacturer>/<codename>/`. Existing trees are preserved unless
-`--overwrite` is given. `--git` uses your configured Git identity.
+Those values are illustrative only.
 
-## Source-image compatibility
+## What remains device-specific
 
-The upstream project documents validation through Android 12. NEXT's
-modern TWRP **product skeletons** do not imply that the original
-`sebaubuntu-libs`/AIK image unpacker supports every Android 13–16 boot
-header, standalone `vendor_boot`, `init_boot`, vendor ramdisk fragment,
-or GKI layout. When extraction cannot find a ramdisk, the generator fails
-rather than producing a falsely complete recovery tree.
-
-### Still requiring device-specific implementation
-
-- `vendor_boot` v3/v4 table parsing, fragment extraction and `init_boot`
-  integration
-- Reliable `super.img` metadata ingestion and retrofit dynamic layouts
-- FBE decryption, KeyMint/Gatekeeper services, and stock SELinux integration
-- Recovery build/test validation against a real TWRP checkout and hardware
+Understanding the container format does not make a recovery automatically
+bootable. TWRP still needs device-specific FBE/KeyMint/Gatekeeper integration,
+SELinux policy, kernel modules, input/display quirks, AVB policy, and correct
+repacking flags. \`vendor_kernel_boot\` and OEM-specific wrappers are separate
+formats and are not silently treated as vendor_boot.
 
 ## Developer checks
 
-```bash
+\`\`\`bash
 python3 -m compileall -q twrpdtgen tests
 python3 -m unittest discover -s tests -v
-```
+\`\`\`
 
-Release artifacts are source-only; **no automatically generated device
-image is certified safe to flash**.
+Generated trees and releases are source artifacts. They are not certified
+flashable recovery images until built and tested for the target device.
