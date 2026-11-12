@@ -146,11 +146,17 @@ BOARD_BOOTIMG_HEADER_VERSION := {{ image_info.header_version }}
 {% if image_info.base_address %}
 BOARD_KERNEL_BASE := {{ image_info.base_address }}
 {% endif %}
+{% if image_info.board_name %}
+BOARD_NAME := {{ image_info.board_name }}
+{% endif %}
 {% if image_info.cmdline %}
 BOARD_KERNEL_CMDLINE := {{ image_info.cmdline }}
 {% endif %}
 {% if image_info.pagesize %}
 BOARD_KERNEL_PAGESIZE := {{ image_info.pagesize }}
+{% endif %}
+{% if image_info.kernel_offset %}
+BOARD_KERNEL_OFFSET := {{ image_info.kernel_offset }}
 {% endif %}
 {% if image_info.ramdisk_offset %}
 BOARD_RAMDISK_OFFSET := {{ image_info.ramdisk_offset }}
@@ -158,14 +164,29 @@ BOARD_RAMDISK_OFFSET := {{ image_info.ramdisk_offset }}
 {% if image_info.tags_offset %}
 BOARD_KERNEL_TAGS_OFFSET := {{ image_info.tags_offset }}
 {% endif %}
+{% if image_info.dtb_offset %}
+BOARD_DTB_OFFSET := {{ image_info.dtb_offset }}
+{% endif %}
 {% if image_info.header_version != "0" %}
 BOARD_MKBOOTIMG_ARGS += --header_version $(BOARD_BOOTIMG_HEADER_VERSION)
+{% endif %}
+{% if image_info.board_name %}
+BOARD_MKBOOTIMG_ARGS += --board $(BOARD_NAME)
+{% endif %}
+{% if image_info.pagesize %}
+BOARD_MKBOOTIMG_ARGS += --pagesize $(BOARD_KERNEL_PAGESIZE)
+{% endif %}
+{% if image_info.kernel_offset %}
+BOARD_MKBOOTIMG_ARGS += --kernel_offset $(BOARD_KERNEL_OFFSET)
 {% endif %}
 {% if image_info.ramdisk_offset %}
 BOARD_MKBOOTIMG_ARGS += --ramdisk_offset $(BOARD_RAMDISK_OFFSET)
 {% endif %}
 {% if image_info.tags_offset %}
 BOARD_MKBOOTIMG_ARGS += --tags_offset $(BOARD_KERNEL_TAGS_OFFSET)
+{% endif %}
+{% if image_info.dtb_offset %}
+BOARD_MKBOOTIMG_ARGS += --dtb_offset $(BOARD_DTB_OFFSET)
 {% endif %}
 {% endif %}
 
