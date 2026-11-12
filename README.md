@@ -107,6 +107,40 @@ The selector may also be a numeric vendor ramdisk table index.
 | twrp-14.1 | twrp_<codename> | vendor/twrp/config/common.mk | TWRP 14.1 |
 | auto | firmware SDK based | firmware SDK based | SDK >=34: 14.1; SDK 31–33: 12.1 |
 
+## Google Colab
+
+Clone the repository and run the root launcher. The launcher detects Colab,
+installs only missing Linux extraction tools, installs NEXT from the clone, and
+then forwards arguments to the normal CLI.
+
+~~~bash
+!git clone https://github.com/RectifyData/twrpdtgen-NEXT.git
+%cd twrpdtgen-NEXT
+!bash launcher.sh
+~~~
+
+After uploading images into the Colab session, generate from a dedicated
+recovery image:
+
+~~~bash
+!bash launcher.sh /content/recovery.img -o /content/output
+~~~
+
+For a modern split GKI layout:
+
+~~~bash
+!bash launcher.sh /content/init_boot.img \
+  --boot-image /content/boot.img \
+  --vendor-boot /content/vendor_boot.img \
+  --skeleton twrp-14.1 \
+  -o /content/output
+~~~
+
+The no-argument form performs setup plus an environment check and prints the
+ready-to-run examples. Useful launcher-only commands are
+`--doctor`, `--self-test`, and `--setup-only`. All other arguments are
+passed unchanged to `python3 -m twrpdtgen`.
+
 ## Installation
 
 Requires Python 3.8 or later.
