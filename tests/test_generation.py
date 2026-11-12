@@ -150,6 +150,7 @@ class GenerationTests(unittest.TestCase):
             self.assertIn('"kind": "dedicated_recovery"', manifest)
             board = (tree / "BoardConfig.mk").read_text()
             self.assertIn("TARGET_RECOVERY_FSTAB :=", board)
+            self.assertIn("TARGET_USES_64_BIT_BINDER := true", board)
             self.assertIn("# Detected logical partitions: system vendor", board)
             self.assertNotIn("BOARD_SUPER_PARTITION_SIZE :=", board)
             self.assertNotIn("BOARD_RECOVERYIMAGE_PARTITION_SIZE :=", board)
