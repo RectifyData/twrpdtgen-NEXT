@@ -129,6 +129,28 @@ class NextSupportTests(unittest.TestCase):
                 (None, None),
             )
 
+            # Notification LEDs must never be mistaken for the display.
+            for child in nested.iterdir():
+                child.unlink()
+            init.write_text(
+                "on init\n"
+                "    write /sys/class/leds/red/brightness 255\n"
+            )
+            self.assertEqual(
+                detect_brightness_policy(root),
+                (None, None),
+            )
+
+            # Known LCD-backlight class paths are accepted.
+            init.write_text(
+                "on boot\n"
+                "    write /sys/class/leds/lcd-backlight/brightness 150\n"
+            )
+            self.assertEqual(
+                detect_brightness_policy(root),
+                ("/sys/class/leds/lcd-backlight/brightness", 150),
+            )
+
     def test_detect_legacy_kernel_image_name(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
