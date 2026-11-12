@@ -20,7 +20,9 @@ The native parser is the default path. It reads each image once, validates
 component/table bounds, expands the ramdisk once, and reuses that extraction for
 device detection, fstab analysis and skeleton generation. This avoids a slower
 unpack/repack/unpack pipeline while keeping the original image metadata in a
-machine-readable manifest.
+machine-readable manifest. When the generated output and extraction workspace
+share a filesystem, stock-root uses hardlinks instead of rewriting every
+regular file, with an automatic copy fallback across filesystems.
 
 ## Recovery ramdisk -> skeleton
 
@@ -34,6 +36,10 @@ Every generated tree contains:
   recovery ramdisk.
 - **recovery/ramdisk-manifest.json** — source image/fragment, extraction policy,
   copied files, symlinks and skipped special entries.
+
+The full stock-root is ignored by the generated .gitignore so a generated
+device-tree repository does not accidentally commit an entire stock recovery
+filesystem. The manifest and actual recovery/root overlay remain trackable.
 
 Selection is deterministic:
 
