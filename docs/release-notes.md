@@ -6,10 +6,11 @@ ramdisk itself rather than copying only a few init scripts.
 - Preserves the complete expanded selected recovery payload in
   `recovery/stock-root/`.
 - Seeds the actual Android/TWRP build overlay in `recovery/root/`.
-- Typed vendor_boot v4 RECOVERY fragments are copied in full because AOSP
-  builds those fragments directly from the recovery staging root.
-- Complete stock recovery/boot ramdisks use a conservative auto overlay so
-  stock recovery, init, adbd and generic framework files do not replace TWRP.
+- The complete selected recovery payload is always preserved in stock-root,
+  including typed vendor_boot RECOVERY fragments.
+- Auto mode always uses a conservative build overlay so stock recovery, init,
+  adbd and generic framework files do not replace TWRP; full overlay is an
+  explicit override.
 - Adds deterministic `--recovery-fragment` selection when vendor_boot has
   multiple board-specific recovery fragments; unsafe board_id guessing is
   rejected.
