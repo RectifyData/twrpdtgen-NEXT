@@ -20,6 +20,9 @@ Verified generator fixes:
 - Fixes an inverted BoardConfig template condition: 64-bit devices now emit
   `TARGET_USES_64_BIT_BINDER := true` instead of emitting it only for
   non-64-bit targets.
+- Preserves legacy boot-header reconstruction metadata already extracted by
+  AIK: board name, page size, kernel offset and DTB offset are now emitted back
+  into BoardConfig/mkbootimg arguments when present.
 - Adds regression tests for symlink-safe ZIP packaging, stock-root exclusion,
   optional stock-root inclusion, stock-fstab preservation, the proprietary-file
   placeholder, and 64-bit binder output.
