@@ -5,17 +5,18 @@
 from dataclasses import dataclass, field
 import bz2
 import gzip
+import io
 import json
 import lzma
 from pathlib import Path, PurePosixPath
 import shutil
 import struct
-import subprocess
 import tempfile
 from typing import List, Optional, Tuple
 
 import lz4.block
 import lz4.frame
+import zstandard
 
 ANDROID_MAGIC = b"ANDROID!"
 VENDOR_BOOT_MAGIC = b"VNDRBOOT"
@@ -215,35 +216,20 @@ def decompress_ramdisk(data):
         elif data.startswith(LZ4_FRAME_MAGIC):
             raw, kind = lz4.frame.decompress(data), "lz4"
         elif data.startswith(ZSTD_MAGIC):
-            executable = shutil.which("zstd")
-            if executable is None:
+            # Use the Python zstandard module so modern image extraction is
+            # native on Windows/Colab/Linux and does not depend on a host CLI.
+            decompressor = zstandard.ZstdDecompressor()
+            with decompressor.stream_reader(io.BytesIO(data)) as reader:
+                raw = reader.read(MAX_RAMDISK_BYTES + 1)
+            if len(raw) > MAX_RAMDISK_BYTES:
                 raise ImageFormatError(
-                    "Zstandard ramdisk detected; install the zstd command")
-            # Feed zstd from a regular file rather than a stdin pipe. This lets
-            # us cap stdout while zstd reads independently, avoiding a pipe
-            # deadlock and preventing unbounded in-memory decompression.
-            with tempfile.TemporaryDirectory(
-                    prefix="twrpdtgen-zstd-") as temporary:
-                compressed = Path(temporary) / "ramdisk.zst"
-                compressed.write_bytes(data)
-                process = subprocess.Popen(
-                    [executable, "-q", "-d", "-c", str(compressed)],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.DEVNULL)
-                assert process.stdout is not None
-                raw = process.stdout.read(MAX_RAMDISK_BYTES + 1)
-                if len(raw) > MAX_RAMDISK_BYTES:
-                    process.kill()
-                    process.wait()
-                    raise ImageFormatError(
-                        "Ramdisk exceeds extraction safety limit")
-                if process.wait() != 0:
-                    raise ImageFormatError(
-                        "zstd failed to decompress ramdisk")
+                    "Ramdisk exceeds extraction safety limit")
             kind = "zstd"
         else:
             raw, kind = lzma.decompress(data, format=lzma.FORMAT_ALONE), "lzma"
-    except (OSError, EOFError, lzma.LZMAError, lz4.frame.LZ4FrameError) as exc:
+    except (
+            OSError, EOFError, lzma.LZMAError,
+            lz4.frame.LZ4FrameError, zstandard.ZstdError) as exc:
         raise ImageFormatError(f"Unable to decompress ramdisk: {exc}") from exc
     if len(raw) > MAX_RAMDISK_BYTES:
         raise ImageFormatError("Ramdisk exceeds extraction safety limit")
