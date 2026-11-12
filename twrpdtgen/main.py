@@ -44,7 +44,8 @@ def _extract_only(args):
         args.image,
         boot_image=args.boot_image,
         vendor_boot=args.vendor_boot,
-        init_boot=args.init_boot)
+        init_boot=args.init_boot,
+        recovery_fragment=args.recovery_fragment)
     try:
         info = manager.unpack()
         destination = manager.export(
@@ -109,6 +110,19 @@ def main():
         help=(
             "override detected recovery storage location"))
     parser.add_argument(
+        "--recovery-fragment",
+        help=(
+            "vendor_boot v4 RECOVERY fragment name or numeric index; "
+            "required only when multiple recovery fragments exist"))
+    parser.add_argument(
+        "--recovery-root-mode",
+        choices=("auto", "minimal", "full"),
+        default="auto",
+        help=(
+            "how stock recovery files seed recovery/root: auto copies a "
+            "typed RECOVERY fragment exactly and uses a conservative overlay "
+            "for complete stock recovery/boot ramdisks"))
+    parser.add_argument(
         "--boot-size",
         type=parse_partition_size,
         help="verified boot partition size in bytes")
@@ -149,6 +163,7 @@ def main():
     options = NextOptions(
         skeleton=args.skeleton,
         recovery_layout=args.recovery_layout,
+        recovery_root_mode=args.recovery_root_mode,
         boot_size=args.boot_size,
         recovery_size=args.recovery_size,
         super_size=args.super_size,
