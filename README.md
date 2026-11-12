@@ -8,6 +8,9 @@ device-tree skeletons from classic and split Android boot images.
 - **[Launcher guide](docs/launchers.md)** — complete Windows CMD, PowerShell,
   Linux and Google Colab setup/usage, command reference, examples and
   troubleshooting.
+- **[Cloud firmware slicing](docs/cloud-firmware-slicing.md)** — use Google
+  Colab/cloud compute to download Samsung firmware from FUS and return only the
+  requested standalone partition image.
 - Run `python3 -m twrpdtgen --help` (or the equivalent through a launcher) for
   the current generator CLI arguments.
 
@@ -31,6 +34,35 @@ unpack/repack/unpack pipeline while keeping the original image metadata in a
 machine-readable manifest. When the generated output and extraction workspace
 share a filesystem, stock-root uses hardlinks instead of rewriting every
 regular file, with an automatic copy fallback across filesystems.
+
+## Cloud-assisted Samsung firmware slicing
+
+Need one small Samsung firmware image without pulling the full multi-gigabyte
+firmware bundle through your local PC? NEXT can offload the heavy transfer and
+decryption to Google Colab.
+
+The cloud slicer uses samloader-rs for Samsung FUS download/decryption, streams
+the selected Odin TAR.MD5 package without unpacking the whole AP archive, and
+decodes the requested .lz4 payload directly into the final image.
+
+~~~bash
+python3 -m twrpdtgen.cloud_slice fetch \
+  -m SM-G975F \
+  -r BTU \
+  --partition boot \
+  -o /content/boot.img \
+  --colab-download
+~~~
+
+Only the final payload is downloaded to the local machine. The full firmware
+ZIP is deleted from the cloud by default after a successful slice.
+
+For the easiest workflow, open
+**[colab/cloud_firmware_slice.ipynb](colab/cloud_firmware_slice.ipynb)** in
+Google Colab. See
+**[docs/cloud-firmware-slicing.md](docs/cloud-firmware-slicing.md)** for the
+architecture, package selection, exact-member mode, cleanup behavior and
+limitations.
 
 ## Recovery ramdisk -> skeleton
 
