@@ -20,6 +20,10 @@ The selected stock recovery payload is extracted once and reused directly.
 - **recovery/root/** is the build overlay consumed by Android/TWRP.
 - **recovery/ramdisk-manifest.json** records the selected image or fragment and
   the entries copied into both trees.
+- **recovery.stock.fstab** preserves the exact stock fstab used as input.
+  **recovery.fstab** is the normalized TWRP-oriented output; compare the two
+  before building because formatter-visible flags are not guaranteed to cover
+  every stock fs_mgr detail.
 
 {% if recovery_root_mode == "full" %}
 Full mode was explicitly requested, so the complete selected recovery payload
