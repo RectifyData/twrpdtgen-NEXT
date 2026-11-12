@@ -37,12 +37,38 @@ _DATE = re.compile(r"\d{4}-\d{2}-\d{2}\Z")
 
 
 def parse_partition_size(value: str) -> int:
-    """Parse bytes (decimal/hex); reject bogus or unaligned geometry."""
-    try:
-        result = int(value, 0)
-    except (ValueError, TypeError) as exc:
+    """Parse verified partition sizes and reject invalid/unaligned geometry.
+
+    Plain decimal and 0x-prefixed values are bytes. Binary KiB/MiB/GiB
+    suffixes are accepted for the Colab/CLI convenience fields.
+    """
+    if isinstance(value, bool) or value is None:
         raise ValueError(
-            "Partition size must be an integer byte count") from exc
+            "Partition size must be a byte count or KiB/MiB/GiB value")
+    text = str(value).strip()
+    match = re.fullmatch(
+        r"(0[xX][0-9a-fA-F]+|[0-9]+)\s*(KiB|MiB|GiB)?",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if match is None:
+        raise ValueError(
+            "Partition size must be bytes or a KiB/MiB/GiB value")
+    number, suffix = match.groups()
+    try:
+        base = 16 if number.lower().startswith("0x") else 10
+        result = int(number, base)
+    except ValueError as exc:
+        raise ValueError("Invalid partition size") from exc
+
+    if suffix:
+        scale = {
+            "kib": 1024,
+            "mib": 1024 ** 2,
+            "gib": 1024 ** 3,
+        }[suffix.lower()]
+        result *= scale
+
     if result <= 0 or result % 4096:
         raise ValueError(
             "Partition size must be positive and 4096-byte aligned")
@@ -294,3 +320,86 @@ def format_twrp_fstab(fstab, *, system_as_root: bool = False) -> str:
         )
 
     return "\n".join(rendered) + "\n"
+
+
+def _is_display_brightness_path(path: str) -> bool:
+    """Return true only for sysfs nodes that are clearly display backlights."""
+    if re.fullmatch(
+            r"/sys/class/backlight/[^/]+/brightness",
+            path):
+        return True
+    return bool(re.fullmatch(
+        r"/sys/class/leds/[^/]*(?:lcd|panel|backlight)[^/]*/brightness",
+        path,
+        flags=re.IGNORECASE,
+    ))
+
+
+def detect_brightness_policy(ramdisk_or_roots):
+    """Infer recovery brightness settings from explicit stock init writes.
+
+    The path is emitted only when one brightness node is unambiguous across the
+    selected recovery payload. A default value is emitted only when startup
+    actions (early-init/init/boot) agree on one positive numeric value. Writes
+    from shutdown or property-triggered actions never become defaults.
+    """
+    matches = []
+    pattern = re.compile(
+        r"^\s*write\s+(\S*/brightness)\s+(\d+)\s*(?:#.*)?$"
+    )
+    trigger_pattern = re.compile(r"^\s*on\s+(.+?)\s*$")
+    startup_triggers = {"early-init", "init", "boot"}
+
+    for root in _ramdisk_roots(ramdisk_or_roots):
+        candidates = list(root.glob("init*.rc"))
+        for relative in (
+                "system/etc/init",
+                "vendor/etc/init",
+                "odm/etc/init"):
+            folder = root / relative
+            if folder.is_dir():
+                candidates.extend(folder.rglob("*.rc"))
+
+        seen = set()
+        for path in candidates:
+            path = Path(path)
+            if path in seen or not path.is_file():
+                continue
+            seen.add(path)
+            current_trigger = None
+            for line in path.read_text(
+                    encoding="utf-8",
+                    errors="replace").splitlines():
+                trigger = trigger_pattern.match(line)
+                if trigger:
+                    current_trigger = trigger.group(1).strip()
+                    continue
+                match = pattern.match(line)
+                if not match:
+                    continue
+                brightness_path, raw_value = match.groups()
+                if not _is_display_brightness_path(brightness_path):
+                    continue
+                matches.append((
+                    brightness_path,
+                    int(raw_value),
+                    current_trigger,
+                ))
+
+    unique_paths = {path for path, _, _ in matches}
+    if len(unique_paths) != 1:
+        return None, None
+
+    path = next(iter(unique_paths))
+    startup_values = {
+        value
+        for candidate, value, trigger in matches
+        if (
+            candidate == path
+            and trigger in startup_triggers
+            and value > 0
+        )
+    }
+    default = next(iter(startup_values)) if len(startup_values) == 1 else None
+    return path, default
+

@@ -7,7 +7,8 @@ from pathlib import Path
 
 from twrpdtgen.next_support import (
     NextOptions, choose_recovery_layout, detect_android_api,
-    detect_kernel_image_name, find_recovery_fstab, format_twrp_fstab,
+    detect_brightness_policy, detect_kernel_image_name,
+    find_recovery_fstab, format_twrp_fstab,
     normalize_partition_names, parse_partition_size, resolve_skeleton,
     safe_component, valid_security_patch,
 )
@@ -59,8 +60,16 @@ class NextSupportTests(unittest.TestCase):
 
     def test_partition_geometry(self):
         self.assertEqual(parse_partition_size("0x4000000"), 67108864)
+        self.assertEqual(parse_partition_size("67108864"), 67108864)
+        self.assertEqual(parse_partition_size("64MiB"), 67108864)
+        self.assertEqual(parse_partition_size("64 mib"), 67108864)
+        self.assertEqual(parse_partition_size("1GiB"), 1073741824)
         with self.assertRaises(ValueError):
             parse_partition_size("9126805503")
+        with self.assertRaises(ValueError):
+            parse_partition_size("64MB")
+        with self.assertRaises(ValueError):
+            parse_partition_size("nope")
         with self.assertRaises(ValueError):
             NextOptions(super_size=4096, dynamic_group_size=4096)
         with self.assertRaises(ValueError):
@@ -82,6 +91,65 @@ class NextSupportTests(unittest.TestCase):
         self.assertEqual(choose_recovery_layout("auto", "boot.img", True), "boot")
         self.assertEqual(choose_recovery_layout("auto", "unknown.img", True), "unknown")
         self.assertEqual(choose_recovery_layout("vendor_boot", "boot.img", False), "vendor_boot")
+
+    def test_detect_brightness_policy_from_stock_init(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            init = root / "init.recovery.qcom.rc"
+            init.write_text(
+                "on init\n"
+                "    write /sys/class/backlight/panel0-backlight/brightness 200\n"
+                "on shutdown\n"
+                "    write /sys/class/backlight/panel0-backlight/brightness 0\n"
+            )
+            self.assertEqual(
+                detect_brightness_policy(root),
+                ("/sys/class/backlight/panel0-backlight/brightness", 200),
+            )
+
+            init.write_text(
+                "on init\n"
+                "    write /sys/class/backlight/panel0-backlight/brightness 180\n"
+                "on boot\n"
+                "    write /sys/class/backlight/panel0-backlight/brightness 200\n"
+            )
+            self.assertEqual(
+                detect_brightness_policy(root),
+                ("/sys/class/backlight/panel0-backlight/brightness", None),
+            )
+
+            nested = root / "vendor/etc/init"
+            nested.mkdir(parents=True)
+            (nested / "display.rc").write_text(
+                "on boot\n"
+                "    write /sys/class/leds/lcd-backlight/brightness 150\n"
+            )
+            self.assertEqual(
+                detect_brightness_policy(root),
+                (None, None),
+            )
+
+            # Notification LEDs must never be mistaken for the display.
+            for child in nested.iterdir():
+                child.unlink()
+            init.write_text(
+                "on init\n"
+                "    write /sys/class/leds/red/brightness 255\n"
+            )
+            self.assertEqual(
+                detect_brightness_policy(root),
+                (None, None),
+            )
+
+            # Known LCD-backlight class paths are accepted.
+            init.write_text(
+                "on boot\n"
+                "    write /sys/class/leds/lcd-backlight/brightness 150\n"
+            )
+            self.assertEqual(
+                detect_brightness_policy(root),
+                ("/sys/class/leds/lcd-backlight/brightness", 150),
+            )
 
     def test_detect_legacy_kernel_image_name(self):
         with tempfile.TemporaryDirectory() as temp:
