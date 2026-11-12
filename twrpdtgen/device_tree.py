@@ -26,7 +26,9 @@ from twrpdtgen.next_support import (
     NextOptions,
     choose_recovery_layout,
     detect_android_api,
+    detect_kernel_image_name,
     find_recovery_fstab,
+    format_twrp_fstab,
     normalize_partition_names,
     resolve_skeleton,
     safe_component,
@@ -151,6 +153,10 @@ class DeviceTree:
                 self.device_info,
                 "vendor_build_security_patch",
                 None))
+
+        self.kernel_image_name = detect_kernel_image_name(
+            getattr(self.image_info, "kernel", None)
+        )
 
         (
             self.recovery_ramdisk_roots,
@@ -477,7 +483,11 @@ class DeviceTree:
             device_tree_folder
             / "recovery.fstab"
         ).write_text(
-            self.fstab.format(twrp=True))
+            format_twrp_fstab(
+                self.fstab,
+                system_as_root=bool(
+                    self.device_info.device_uses_system_as_root),
+            ))
         # Keep the exact source fstab beside the normalized TWRP fstab so
         # fs_mgr details that the formatter does not represent (for example
         # length= crypto-footer reservations) remain auditable.
@@ -544,6 +554,7 @@ class DeviceTree:
             device_info=self.device_info,
             fstab=self.fstab,
             image_info=self.image_info,
+            kernel_image_name=self.kernel_image_name,
             version=version,
             skeleton=self.skeleton,
             android_api=self.android_api,
