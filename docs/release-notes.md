@@ -1,41 +1,31 @@
-# twrpdtgen-NEXT 3.1.0a12 — legacy image fidelity and fstab safety
+# twrpdtgen-NEXT 3.1.0a13 — recovery overlay build wiring
 
-This prerelease follows inspection of a clean 3.1.0a11 Galaxy A20s
-SM-A207F tree. The a11 packaging fixes are now confirmed in a real artifact:
-the downloadable tree fell to about 10.9 MB, excluded audit-only
-`recovery/stock-root/`, included `recovery.stock.fstab` and
-`proprietary-files.txt`, used a minimal recovery overlay, and stamped the
-generated README with the exact NEXT version.
+A static audit of the clean Galaxy A20s SM-A207F generated tree exposed a
+critical source-tree integration bug: NEXT correctly generated
+`recovery/root/`, but the product makefile never copied that overlay into the
+recovery ramdisk.
 
-That inspection exposed two remaining generic reconstruction problems:
+For the inspected A20s tree this meant the generated
+`init.recovery.qcom.rc` existed in the source ZIP but would not be present in a
+built recovery image. The same bug affected every generated device that relied
+on minimal/full recovery-root overlays.
 
-- The extracted A20s prebuilt kernel is actually an `Image.gz-dtb`: a gzip
-  kernel stream followed by an appended flattened device tree, while the
-  generated BoardConfig still declared `BOARD_KERNEL_IMAGE_NAME := Image`.
-- The normalized TWRP fstab discarded the stock userdata
-  `length=-16384` reservation and kept a system-as-root source mount at
-  `/`, losing recovery-relevant wipe geometry and the conventional
-  `/system_root` TWRP mount.
+Fixes in 3.1.0a13:
 
-Fixes in 3.1.0a12:
+- Adds the standard Android/TWRP `find-copy-subdir-files` product rule so
+  generated `recovery/root/` files are actually installed into
+  `recovery/root` in the built image.
+- Adds regression coverage that generated TWRP product makefiles wire the
+  recovery overlay into the build.
+- Clarifies generated README wording: `recovery/stock-root/` lives in the
+  generation workspace and is intentionally omitted from exported cloud ZIPs
+  unless explicitly requested.
 
-- Detects legacy prebuilt kernel format from content. Gzip kernels emit
-  `Image.gz`; gzip kernels with an appended FDT emit `Image.gz-dtb`.
-- Emits the detected kernel artifact through `BOARD_KERNEL_IMAGE_NAME`.
-- Uses a NEXT-owned conservative TWRP fstab renderer that preserves
-  `length=`, `logical`, `slotselect`, and `wait` flags.
-- Maps stock `/` to `/system_root` when the parsed device is
-  system-as-root, avoiding an empty `display=` entry.
-- Keeps the exact stock fstab beside the normalized file for full audit.
-- Adds notebook fields for verified boot, recovery, super, and dynamic-group
-  partition sizes. They remain blank by default and are never guessed.
-- Adds regression coverage for raw/gzip/gzip+DTB kernel identification and
-  userdata footer preservation.
+The audit also confirmed several A20s-specific bring-up gaps that are not safe
+to invent generically: exact recovery/boot partition sizes, Samsung/QCOM USB
+recovery init, ueventd permissions, touch firmware, brightness/display policy,
+TWRP storage/backup fstab policy, encryption/decryption, and AVB/SELinux
+behavior.
 
-Target-specific recovery bring-up files that are not present in the selected
-stock recovery ramdisk, such as additional USB init, ueventd permissions,
-touch firmware, brightness policy, and variant-specific TWRP flags, remain
-explicit device-validation work rather than unsafe generic guesses.
-
-**Experimental source generator prerelease.** A generated tree is still not
-proof of a bootable or safe-to-flash recovery.
+**Experimental source generator prerelease.** A generated tree still requires
+a real source build and hardware validation before flashing.
