@@ -66,7 +66,7 @@ jobs:
           print("samloader:", executable)
           subprocess.run([str(executable), "--version"], check=True)
           PY
-      - name: Probe Samsung FUS for Galaxy A20s NEE
+      - name: Probe Samsung FUS metadata for Galaxy A20s NEE
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
