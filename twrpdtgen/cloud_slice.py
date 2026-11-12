@@ -50,20 +50,27 @@ class SliceResult:
     compression: str
 
 
+def _request_headers(*, github_api: bool = False) -> dict:
+    headers = {"User-Agent": USER_AGENT}
+    if github_api:
+        headers["Accept"] = "application/vnd.github+json"
+        token = os.environ.get("GITHUB_TOKEN")
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+    return headers
+
+
 def _request_json(url: str) -> dict:
     request = Request(
         url,
-        headers={
-            "User-Agent": USER_AGENT,
-            "Accept": "application/vnd.github+json",
-        },
+        headers=_request_headers(github_api=True),
     )
     with urlopen(request, timeout=30) as response:
         return json.load(response)
 
 
 def _download_file(url: str, destination: Path) -> None:
-    request = Request(url, headers={"User-Agent": USER_AGENT})
+    request = Request(url, headers=_request_headers())
     destination.parent.mkdir(parents=True, exist_ok=True)
     with urlopen(request, timeout=60) as response, destination.open("wb") as out:
         shutil.copyfileobj(response, out, COPY_BUFFER)
@@ -322,6 +329,15 @@ def _infer_output_name(payload_member: str) -> str:
     return name
 
 
+def _default_output_for_partition(partition: str) -> Path:
+    name = Path(partition).name
+    if name.lower().endswith(".lz4"):
+        name = name[:-4]
+    if name.lower().endswith((".img", ".bin")):
+        return Path(name)
+    return Path(f"{name}.img")
+
+
 def _copy_payload(
         source: BinaryIO,
         payload_member: str,
@@ -389,6 +405,7 @@ def slice_firmware(
                         full = tar_member.name.lower()
                         matched = (
                             full == exact_member
+                            or base == Path(exact_member).name.lower()
                             if exact_member is not None
                             else base in candidates
                         )
@@ -557,13 +574,18 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
             _colab_download(result.output)
         return 0
 
-    output = args.output or Path(f"{Path(args.partition).name}.img")
-    if args.work_dir:
-        work_dir = Path(args.work_dir)
+    output = args.output or _default_output_for_partition(args.partition)
+    if output.exists() and not args.overwrite:
+        raise FileExistsError(f"Output already exists: {output}")
+
+    if args.work_dir or args.keep_firmware:
+        work_dir = Path(args.work_dir or Path.cwd() / ".twrpdtgen-cloud")
         work_dir.mkdir(parents=True, exist_ok=True)
         temporary_context = None
     else:
-        temporary_context = tempfile.TemporaryDirectory(prefix="twrpdtgen-cloud-slice-")
+        temporary_context = tempfile.TemporaryDirectory(
+            prefix="twrpdtgen-cloud-slice-"
+        )
         work_dir = Path(temporary_context.name)
 
     firmware = work_dir / (
