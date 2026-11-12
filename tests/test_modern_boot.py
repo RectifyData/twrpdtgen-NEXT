@@ -255,6 +255,8 @@ class ModernBootTests(unittest.TestCase):
             self.assertEqual(
                 parsed.product_name, "v3board")
             self.assertEqual(
+                parsed.recovery_layout_hint, "vendor_boot")
+            self.assertEqual(
                 len(parsed.vendor_ramdisk_fragments), 1)
             self.assertEqual(
                 parsed.vendor_ramdisk_fragments[0].type_name,
