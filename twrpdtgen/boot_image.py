@@ -631,14 +631,18 @@ class ModernImageManager:
             raise ImageFormatError(
                 "No extractable ramdisk found in supplied images")
         address_source = vendor or boot_source
+        recovery_image = by_kind.get("recovery")
         layout_hint = (
-            vendor.recovery_layout_hint
-            if vendor and vendor.recovery_layout_hint
-            else next(
-                (item.recovery_layout_hint
-                 for item in self.parsed
-                 if item.recovery_layout_hint),
-                None))
+            "dedicated"
+            if recovery_image is not None
+            else (
+                vendor.recovery_layout_hint
+                if vendor and vendor.recovery_layout_hint
+                else next(
+                    (item.recovery_layout_hint
+                     for item in self.parsed
+                     if item.recovery_layout_hint),
+                    None)))
         return CombinedImageInfo(
             source_images=self.parsed,
             primary=primary,
