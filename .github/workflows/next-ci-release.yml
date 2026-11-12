@@ -17,7 +17,7 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install test dependencies
-        run: python -m pip install 'Jinja2>=3.1,<4' 'lz4>=4.3,<5'
+        run: python -m pip install 'Jinja2>=3.1,<4' 'lz4>=4.3,<5' 'zstandard>=0.22,<1'
       - name: Validate launcher shell syntax
         run: bash -n launcher.sh
       - name: Compile Python
@@ -40,9 +40,23 @@ jobs:
       - name: Exercise clone-and-run launcher bootstrap
         run: bash launcher.sh --doctor
 
+  windows-native:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run Windows launcher doctor
+        shell: cmd
+        run: launcher.cmd --doctor
+      - name: Run Windows launcher regression suite
+        shell: cmd
+        run: launcher.cmd --self-test
+
   preview-release:
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-    needs: [tests, colab-bootstrap]
+    needs: [tests, colab-bootstrap, windows-native]
     runs-on: ubuntu-latest
     permissions:
       contents: write

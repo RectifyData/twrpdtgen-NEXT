@@ -14,7 +14,7 @@ NEXT parses the AOSP image structures used by current Android releases:
 - vendor DTB and v4 bootconfig
 - split boot + init_boot + vendor_boot input sets
 - raw newc, gzip, bzip2, XZ/LZMA, LZ4 frame and Android legacy LZ4 ramdisks
-- Zstandard ramdisks when the host zstd command is installed
+- Zstandard ramdisks through the cross-platform Python zstandard decoder
 
 The native parser is the default path. It reads each image once, validates
 component/table bounds, expands the ramdisk once, and reuses that extraction for
@@ -144,6 +144,37 @@ ready-to-run examples. Useful launcher-only commands are
 `--doctor`, `--self-test`, and `--setup-only`. All other arguments are
 passed unchanged to `python3 -m twrpdtgen`.
 
+## Windows
+
+Windows now has a native CMD launcher for the modern parser path. From a normal
+Command Prompt or PowerShell window:
+
+~~~bat
+git clone https://github.com/RectifyData/twrpdtgen-NEXT.git
+cd twrpdtgen-NEXT
+launcher.cmd "C:\firmware\recovery.img" -o "C:\twrp\output"
+~~~
+
+The output directory is created automatically. Split modern layouts use the
+same arguments as Linux/Colab:
+
+~~~bat
+launcher.cmd "C:\firmware\init_boot.img" ^
+  --boot-image "C:\firmware\boot.img" ^
+  --vendor-boot "C:\firmware\vendor_boot.img" ^
+  -o "C:\twrp\output"
+~~~
+
+The Windows launcher installs Python dependencies only when they are missing
+and otherwise runs directly from the cloned source tree. Modern boot/recovery
+header v3/v4, init_boot v4 and vendor_boot v3/v4 are handled without WSL.
+Zstandard is decoded in Python, so a separate zstd.exe is not required.
+
+Older image formats that fall back to the legacy AIK toolchain can still require
+Linux/WSL. Also, preserving actual filesystem symlinks on Windows may require
+Developer Mode or administrator privileges; the parser still rejects unsafe
+escaping symlinks.
+
 ## Installation
 
 Requires Python 3.8 or later.
@@ -154,8 +185,8 @@ python3 -m twrpdtgen --help
 ~~~
 
 The legacy AIK path can still require host tools such as cpio. The modern
-boot/init_boot/vendor_boot parser is native Python except for optional
-Zstandard decompression.
+boot/init_boot/vendor_boot parser and its supported compression formats are
+Python-native on Windows, Linux and Colab.
 
 ## Partition metadata
 

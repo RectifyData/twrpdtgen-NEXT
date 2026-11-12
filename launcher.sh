@@ -29,7 +29,7 @@ PY
 install_system_dependencies() {
     [[ "${TWRPDTGEN_SKIP_SYSTEM_DEPS:-0}" == "1" ]] && return 0
     have apt-get || { log "apt-get unavailable; skipping system packages."; return 0; }
-    local packages=(cpio zstd lz4 xz-utils bzip2 gzip unzip zip file)
+    local packages=(cpio lz4 xz-utils bzip2 gzip unzip zip file)
     local missing=() package
     if have dpkg; then
         for package in "${packages[@]}"; do
@@ -57,12 +57,12 @@ install_python_dependencies() {
 
 doctor() {
     local failed=0 command
-    for command in cpio zstd lz4 xz bzip2 gzip unzip zip file; do
+    for command in cpio lz4 xz bzip2 gzip unzip zip file; do
         have "$command" || { printf "missing command: %s\n" "$command" >&2; failed=1; }
     done
     PYTHONPATH="$ROOT_DIR${PYTHONPATH:+:$PYTHONPATH}" "$PYTHON_BIN" - <<'PY' || failed=1
 import importlib, sys
-for name in ("git", "jinja2", "lz4", "sebaubuntu_libs", "twrpdtgen"):
+for name in ("git", "jinja2", "lz4", "zstandard", "sebaubuntu_libs", "twrpdtgen"):
     importlib.import_module(name)
 import twrpdtgen
 print("python:", sys.version.split()[0])

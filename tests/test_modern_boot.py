@@ -2,6 +2,7 @@
 import gzip
 import lz4.block
 import lz4.frame
+import zstandard
 from pathlib import Path
 import stat
 import struct
@@ -311,6 +312,13 @@ class ModernBootTests(unittest.TestCase):
             finally:
                 manager.cleanup()
 
+    def test_zstd_ramdisk_is_native_python(self):
+        compressed = zstandard.ZstdCompressor().compress(
+            self.cpio)
+        raw, kind = decompress_ramdisk(compressed)
+        self.assertEqual(kind, "zstd")
+        self.assertEqual(raw, self.cpio)
+
     def test_lz4_legacy_and_frame_ramdisks(self):
         legacy_raw, legacy_kind = decompress_ramdisk(
             legacy_lz4(self.cpio))
@@ -321,6 +329,18 @@ class ModernBootTests(unittest.TestCase):
         self.assertEqual(frame_kind, "lz4")
         self.assertEqual(legacy_raw, self.cpio)
         self.assertEqual(frame_raw, self.cpio)
+
+    def test_cpio_windows_backslash_traversal_is_rejected(self):
+        archive = newc([
+            (
+                "..\\outside",
+                b"x",
+                stat.S_IFREG | 0o644),
+        ])
+        with tempfile.TemporaryDirectory() as temp:
+            with self.assertRaises(ImageFormatError):
+                extract_newc(
+                    archive, Path(temp) / "root")
 
     def test_cpio_path_traversal_is_rejected(self):
         archive = newc([

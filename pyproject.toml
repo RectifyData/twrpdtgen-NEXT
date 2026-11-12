@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "twrpdtgen"
-version = "3.1.0a4"
+version = "3.1.0a5"
 description = "Generate conservative TWRP device-tree skeletons from legacy and modern Android boot images"
 authors = ["Sebastiano Barezzi <barezzisebastiano@gmail.com>", "twrpdtgen-NEXT contributors"]
 license = "Apache-2.0"
@@ -16,6 +16,7 @@ GitPython = "^3.1.27"
 Jinja2 = "^3.1.1"
 sebaubuntu-libs = "^1.3.0"
 lz4 = ">=4.3,<5"
+zstandard = ">=0.22,<1"
 
 [tool.poetry.dev-dependencies]
 
