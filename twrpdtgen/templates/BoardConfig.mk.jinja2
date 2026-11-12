@@ -310,6 +310,13 @@ VENDOR_SECURITY_PATCH := {{ security_patch }}
 TW_THEME := portrait_hdpi
 TW_EXTRA_LANGUAGES := true
 TW_SCREEN_BLANK_ON_BOOT := true
+{% if brightness_path %}
+# Stock recovery explicitly writes this backlight node during init.
+TW_BRIGHTNESS_PATH := "{{ brightness_path }}"
+{% if brightness_default is not none %}
+TW_DEFAULT_BRIGHTNESS := {{ brightness_default }}
+{% endif %}
+{% endif %}
 TW_INPUT_BLACKLIST := "hbtp_vm"
 TW_USE_TOOLBOX := true
 {% if device_info.device_is_ab %}
