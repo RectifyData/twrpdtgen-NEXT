@@ -44,8 +44,7 @@ def _extract_only(args):
         args.image,
         boot_image=args.boot_image,
         vendor_boot=args.vendor_boot,
-        init_boot=args.init_boot,
-        recovery_fragment=args.recovery_fragment)
+        init_boot=args.init_boot)
     try:
         info = manager.unpack()
         destination = manager.export(
@@ -178,7 +177,8 @@ def main():
         options=options,
         boot_image=args.boot_image,
         vendor_boot=args.vendor_boot,
-        init_boot=args.init_boot)
+        init_boot=args.init_boot,
+        recovery_fragment=args.recovery_fragment)
     try:
         folder = device_tree.dump_to_folder(
             args.output,
