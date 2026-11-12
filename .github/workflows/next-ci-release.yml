@@ -18,10 +18,17 @@ jobs:
           python-version: '3.11'
       - name: Install test dependencies
         run: python -m pip install 'Jinja2>=3.1,<4' 'lz4>=4.3,<5'
+      - name: Validate launcher shell syntax
+        run: bash -n launcher.sh
       - name: Compile Python
         run: python -m compileall -q twrpdtgen tests
       - name: Run unit regression checks
         run: python -m unittest discover -s tests -v
+      - name: Run launcher self-test path
+        env:
+          TWRPDTGEN_SKIP_SYSTEM_DEPS: '1'
+          TWRPDTGEN_SKIP_PIP: '1'
+        run: bash launcher.sh --self-test
 
   preview-release:
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
