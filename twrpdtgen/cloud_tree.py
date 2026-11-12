@@ -41,11 +41,12 @@ def _archive_tree(tree: Path, archive: Path) -> Path:
         archive.unlink()
 
     # make_archive takes a base name without the .zip suffix.
+    manufacturer = tree.parent.name
     created = shutil.make_archive(
         str(archive.with_suffix("")),
         "zip",
-        root_dir=str(tree.parent),
-        base_dir=tree.name,
+        root_dir=str(tree.parent.parent),
+        base_dir=str(Path(manufacturer) / tree.name),
     )
     return Path(created)
 
