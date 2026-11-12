@@ -156,9 +156,15 @@ BOARD_RECOVERYIMAGE_PARTITION_SIZE := {{ next_options.recovery_size }}
 # TODO: Verify dedicated recovery partition size.
 {% endif %}
 BOARD_HAS_LARGE_FILESYSTEM := true
+{% if skeleton == "omni" %}
+# Legacy defaults; verify against the stock fstab.
 BOARD_SYSTEMIMAGE_PARTITION_TYPE := ext4
 BOARD_USERDATAIMAGE_FILE_SYSTEM_TYPE := ext4
 BOARD_VENDORIMAGE_FILE_SYSTEM_TYPE := ext4
+{% else %}
+# TODO: Set system/vendor/userdata filesystem types after checking stock
+# fstab (ERoFS, ext4 and F2FS are not interchangeable).
+{% endif %}
 TARGET_COPY_OUT_VENDOR := vendor
 {% if device_info.device_uses_dynamic_partitions %}
 # Dynamic partitions detected; never guess super metadata/geometry.
