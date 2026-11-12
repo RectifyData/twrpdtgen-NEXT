@@ -46,13 +46,11 @@ Selection is deterministic:
 5. A v3 or merged vendor_boot ramdisk is accepted only when the source is
    unambiguous.
 
-Auto mode uses **full** recovery/root extraction for a typed RECOVERY fragment,
-because AOSP builds that fragment directly from the recovery staging root. For
-a complete stock recovery/boot ramdisk or merged vendor ramdisk, auto mode
-stores the complete extraction in stock-root but seeds a conservative
-device-specific overlay into recovery/root. It therefore does not replace
-TWRP's own init, recovery binary, adbd, toybox or generic system files with the
-stock recovery implementation.
+Auto mode always keeps the complete selected payload in stock-root and seeds a
+conservative device-specific overlay into recovery/root. This applies even to a
+typed RECOVERY fragment: the stock recovery binary and generic stock init must
+not replace TWRP's own recovery implementation. Use --recovery-root-mode full
+only when an exact full overlay is intentionally required.
 
 Advanced override:
 
