@@ -4,7 +4,7 @@ setlocal EnableExtensions DisableDelayedExpansion
 rem SPDX-License-Identifier: Apache-2.0
 rem Native Windows launcher for twrpdtgen-NEXT.
 
-set "ROOT_DIR=%~dp0"
+for %%I in ("%~dp0.") do set "ROOT_DIR=%%~fI"
 set "CALLER_DIR=%CD%"
 set "PYTHON_CMD="
 
