@@ -1,31 +1,32 @@
-# twrpdtgen-NEXT 3.1.0a13 — recovery overlay build wiring
+# twrpdtgen-NEXT 3.1.0a14 — stock brightness policy
 
-A static audit of the clean Galaxy A20s SM-A207F generated tree exposed a
-critical source-tree integration bug: NEXT correctly generated
-`recovery/root/`, but the product makefile never copied that overlay into the
-recovery ramdisk.
+The A20s generated-tree audit continued after 3.1.0a13 fixed recovery-overlay
+installation.
 
-For the inspected A20s tree this meant the generated
-`init.recovery.qcom.rc` existed in the source ZIP but would not be present in a
-built recovery image. The same bug affected every generated device that relied
-on minimal/full recovery-root overlays.
+The inspected SM-A207F stock recovery contains an explicit init write to
+`/sys/class/backlight/panel0-backlight/brightness` with value `200`. That
+device-specific recovery policy was directly observable but NEXT previously
+discarded it, leaving TWRP to locate a brightness node on its own.
 
-Fixes in 3.1.0a13:
+Fixes in 3.1.0a14:
 
-- Adds the standard Android/TWRP `find-copy-subdir-files` product rule so
-  generated `recovery/root/` files are actually installed into
-  `recovery/root` in the built image.
-- Adds regression coverage that generated TWRP product makefiles wire the
-  recovery overlay into the build.
-- Clarifies generated README wording: `recovery/stock-root/` lives in the
-  generation workspace and is intentionally omitted from exported cloud ZIPs
-  unless explicitly requested.
+- Scans selected stock recovery init RC files for explicit
+  `write .../brightness <number>` commands.
+- Emits `TW_BRIGHTNESS_PATH` and `TW_DEFAULT_BRIGHTNESS` only when exactly
+  one stock brightness node is unambiguous.
+- Does not guess `TW_MAX_BRIGHTNESS`; TWRP can read the sibling
+  `max_brightness` node at runtime and already has a fallback.
+- Refuses to select between multiple different brightness paths.
+- Generated READMEs now explicitly warn Samsung dedicated-recovery users that
+  image trailer, Odin tar, and verified-boot packaging remain device-specific.
+- Adds regression coverage for root and nested init RC brightness detection and
+  rendered BoardConfig output.
 
-The audit also confirmed several A20s-specific bring-up gaps that are not safe
-to invent generically: exact recovery/boot partition sizes, Samsung/QCOM USB
-recovery init, ueventd permissions, touch firmware, brightness/display policy,
-TWRP storage/backup fstab policy, encryption/decryption, and AVB/SELinux
-behavior.
+The audit still leaves A20s-specific work that cannot be safely inferred from
+this recovery image alone: TWRP backup/flash fstab policy, removable
+microSD/USB-OTG flags, Qualcomm RTC/platform extras, cutout offsets, Samsung
+image trailer/Odin packaging, and any custom USB/ueventd/touch-firmware files
+not present in stock recovery.
 
-**Experimental source generator prerelease.** A generated tree still requires
-a real source build and hardware validation before flashing.
+**Experimental source generator prerelease.** Build and hardware validation are
+still required before flashing.
