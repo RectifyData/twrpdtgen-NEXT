@@ -78,8 +78,10 @@ BOARD_MKBOOTIMG_ARGS += --header_version $(BOARD_BOOT_HEADER_VERSION)
 {% if image_info.init_boot_header_version %}
 BOARD_INIT_BOOT_HEADER_VERSION := {{ image_info.init_boot_header_version }}
 BOARD_USES_INIT_BOOT_IMAGE := true
-BOARD_USES_GENERIC_KERNEL_IMAGE := true
 BOARD_MKBOOTIMG_INIT_ARGS += --header_version $(BOARD_INIT_BOOT_HEADER_VERSION)
+{% endif %}
+{% if image_info.init_boot_header_version or image_info.vendor_boot_header_version %}
+BOARD_USES_GENERIC_KERNEL_IMAGE := true
 {% endif %}
 {% if image_info.vendor_boot_header_version %}
 BOARD_VENDOR_BOOT_HEADER_VERSION := {{ image_info.vendor_boot_header_version }}
