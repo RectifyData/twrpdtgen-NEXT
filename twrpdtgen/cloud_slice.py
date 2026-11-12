@@ -266,6 +266,27 @@ def _package_kind(name: str) -> str:
     return "OTHER"
 
 
+def _preferred_package(partition: str) -> str:
+    name = Path(partition).name.lower()
+    for suffix in (".lz4", ".img", ".bin"):
+        if name.endswith(suffix):
+            name = name[:-len(suffix)]
+    if name in {
+        "modem", "modem_debug", "cp_debug", "cp_mem", "dsp",
+    }:
+        return "CP"
+    if name in {
+        "sboot", "abl", "xbl", "xbl_config", "cm", "tz", "tzsw",
+        "up_param", "keystorage", "steady", "uh", "bksecapp",
+    }:
+        return "BL"
+    if name in {
+        "cache", "prism", "optics", "omr", "carrier",
+    }:
+        return "CSC"
+    return "AP"
+
+
 def _firmware_packages(
         bundle: zipfile.ZipFile,
         package: str = "auto",
@@ -388,6 +409,18 @@ def slice_firmware(
 
     with zipfile.ZipFile(firmware) as bundle:
         packages = _firmware_packages(bundle, package=package)
+        if package.lower() == "auto":
+            preferred = _preferred_package(partition)
+            packages = sorted(
+                packages,
+                key=lambda info: (
+                    _package_kind(info.filename) != preferred,
+                    PACKAGE_ORDER.index(_package_kind(info.filename))
+                    if _package_kind(info.filename) in PACKAGE_ORDER
+                    else len(PACKAGE_ORDER),
+                    Path(info.filename).name,
+                ),
+            )
         for package_info in packages:
             with bundle.open(package_info) as package_stream:
                 try:
