@@ -3,6 +3,14 @@
 A modernized, safety-oriented evolution of twrpdtgen for generating TWRP
 device-tree skeletons from classic and split Android boot images.
 
+## Documentation
+
+- **[Launcher guide](docs/launchers.md)** — complete Windows CMD, PowerShell,
+  Linux and Google Colab setup/usage, command reference, examples and
+  troubleshooting.
+- Run `python3 -m twrpdtgen --help` (or the equivalent through a launcher) for
+  the current generator CLI arguments.
+
 ## Modern Android image support
 
 NEXT parses the AOSP image structures used by current Android releases:
@@ -144,6 +152,9 @@ ready-to-run examples. Useful launcher-only commands are
 `--doctor`, `--self-test`, and `--setup-only`. All other arguments are
 passed unchanged to `python3 -m twrpdtgen`.
 
+See **[docs/launchers.md](docs/launchers.md)** for the full Colab/Linux launcher
+reference, recovery-layout examples, output structure and troubleshooting.
+
 ## Windows
 
 Windows now has a native CMD launcher for the modern parser path. From a normal
@@ -174,6 +185,10 @@ Older image formats that fall back to the legacy AIK toolchain can still require
 Linux/WSL. Also, preserving actual filesystem symlinks on Windows may require
 Developer Mode or administrator privileges; the parser still rejects unsafe
 escaping symlinks.
+
+See **[docs/launchers.md](docs/launchers.md)** for the full Windows CMD and
+PowerShell guide, including quoting rules, split-image examples and
+troubleshooting.
 
 ## Installation
 
