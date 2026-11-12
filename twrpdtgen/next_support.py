@@ -52,6 +52,7 @@ def parse_partition_size(value: str) -> int:
 class NextOptions:
     skeleton: str = "auto"
     recovery_layout: str = "auto"
+    recovery_root_mode: str = "auto"
     boot_size: Optional[int] = None
     recovery_size: Optional[int] = None
     super_size: Optional[int] = None
@@ -65,6 +66,9 @@ class NextOptions:
         if self.recovery_layout not in (
                 "auto", "dedicated", "boot", "vendor_boot"):
             raise ValueError("Unknown recovery layout")
+        if self.recovery_root_mode not in (
+                "auto", "minimal", "full"):
+            raise ValueError("Unknown recovery root mode")
         for name in (
                 "boot_size", "recovery_size",
                 "super_size", "dynamic_group_size"):
