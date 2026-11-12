@@ -168,14 +168,20 @@ def ensure_samloader(
     _download_file(str(download_url), archive)
 
     expected = str(asset.get("digest") or "")
-    if expected.startswith("sha256:"):
-        actual = _sha256_file(archive)
-        wanted = expected.split(":", 1)[1].lower()
-        if actual.lower() != wanted:
-            archive.unlink(missing_ok=True)
-            raise CloudSliceError(
-                "samloader release archive SHA-256 mismatch; refusing to execute it"
-            )
+    if not expected.startswith("sha256:"):
+        archive.unlink(missing_ok=True)
+        raise CloudSliceError(
+            "samloader release asset has no GitHub SHA-256 digest; "
+            "refusing automatic installation. Pass --samloader with a "
+            "manually verified executable instead."
+        )
+    actual = _sha256_file(archive)
+    wanted = expected.split(":", 1)[1].lower()
+    if actual.lower() != wanted:
+        archive.unlink(missing_ok=True)
+        raise CloudSliceError(
+            "samloader release archive SHA-256 mismatch; refusing to execute it"
+        )
 
     with zipfile.ZipFile(archive) as bundle:
         members = [
