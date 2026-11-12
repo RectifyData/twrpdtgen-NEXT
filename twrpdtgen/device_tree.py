@@ -160,14 +160,15 @@ class DeviceTree:
         )
 
         (
-            self.brightness_path,
-            self.brightness_default,
-        ) = detect_brightness_policy(self.ramdisk_roots)
-
-        (
             self.recovery_ramdisk_roots,
             self.recovery_source,
         ) = self._select_recovery_ramdisk()
+
+        (
+            self.brightness_path,
+            self.brightness_default,
+        ) = detect_brightness_policy(
+            self.recovery_ramdisk_roots)
         self.recovery_root_mode = (
             self.options.recovery_root_mode
             if self.options.recovery_root_mode != "auto"
