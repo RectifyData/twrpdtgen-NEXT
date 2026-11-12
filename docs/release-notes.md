@@ -12,11 +12,13 @@ Fixes in 3.1.0a14:
 
 - Scans selected stock recovery init RC files for explicit
   `write .../brightness <number>` commands.
-- Emits `TW_BRIGHTNESS_PATH` and `TW_DEFAULT_BRIGHTNESS` only when exactly
-  one stock brightness node is unambiguous.
+- Emits `TW_BRIGHTNESS_PATH` only when exactly one stock brightness node is
+  unambiguous, and emits `TW_DEFAULT_BRIGHTNESS` only when startup actions
+  agree on one positive value.
 - Does not guess `TW_MAX_BRIGHTNESS`; TWRP can read the sibling
   `max_brightness` node at runtime and already has a fallback.
-- Refuses to select between multiple different brightness paths.
+- Ignores shutdown/property-triggered values when choosing a startup default,
+  and refuses to select between multiple different brightness paths.
 - Generated READMEs now explicitly warn Samsung dedicated-recovery users that
   image trailer, Odin tar, and verified-boot packaging remain device-specific.
 - Adds regression coverage for root and nested init RC brightness detection and
