@@ -165,11 +165,7 @@ class DeviceTree:
         self.recovery_root_mode = (
             self.options.recovery_root_mode
             if self.options.recovery_root_mode != "auto"
-            else (
-                "full"
-                if self.recovery_source["kind"]
-                == "vendor_boot_recovery_fragment"
-                else "minimal"))
+            else "minimal")
 
         fstab_roots = list(
             self.recovery_ramdisk_roots)
