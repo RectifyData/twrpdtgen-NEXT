@@ -172,6 +172,7 @@ class DeviceTree:
         if fstab_location is None:
             raise ValueError(
                 "No stock fstab found in extracted ramdisks")
+        self.stock_fstab_path = Path(fstab_location)
         LOGD(
             f"Generating fstab using "
             f"{fstab_location} as reference...")
@@ -398,6 +399,9 @@ class DeviceTree:
             "extract-files.sh")
         self._render_template(
             device_tree_folder,
+            "proprietary-files.txt")
+        self._render_template(
+            device_tree_folder,
             "omni_device.mk",
             out_file=(
                 f"{self.product_prefix}_"
@@ -474,6 +478,12 @@ class DeviceTree:
             / "recovery.fstab"
         ).write_text(
             self.fstab.format(twrp=True))
+        # Keep the exact source fstab beside the normalized TWRP fstab so
+        # fs_mgr details that the formatter does not represent (for example
+        # length= crypto-footer reservations) remain auditable.
+        copyfile(
+            self.stock_fstab_path,
+            device_tree_folder / "recovery.stock.fstab")
 
         if not git:
             return device_tree_folder
