@@ -25,7 +25,7 @@ class CloudTreeTests(unittest.TestCase):
             archive = _archive_tree(tree, root / "result.zip")
             self.assertTrue(archive.is_file())
             with zipfile.ZipFile(archive) as bundle:
-                self.assertIn("a20s/BoardConfig.mk", bundle.namelist())
+                self.assertIn("samsung/a20s/BoardConfig.mk", bundle.namelist())
 
     def test_end_to_end_cloud_tree_pipeline_uses_one_firmware_download(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -93,7 +93,7 @@ class CloudTreeTests(unittest.TestCase):
             self.assertTrue(result.tree.is_dir())
             with zipfile.ZipFile(result.archive) as bundle:
                 self.assertIn(
-                    "a20s/AndroidProducts.mk",
+                    "samsung/a20s/AndroidProducts.mk",
                     bundle.namelist(),
                 )
 
