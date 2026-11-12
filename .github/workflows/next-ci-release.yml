@@ -33,18 +33,18 @@ jobs:
       - uses: actions/checkout@v4
       - name: Publish source-only prerelease
         env:
-          GH_TOKEN: \${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
           version="$(python -c 'from twrpdtgen import __version__; print(__version__)')"
-          tag="next-v\${version}"
+          tag="next-v${version}"
           if gh release view "$tag" >/dev/null 2>&1; then
             echo "Release $tag already exists"
             exit 0
           fi
           gh release create "$tag" \
             --target "$GITHUB_SHA" \
-            --title "twrpdtgen-NEXT \${version} (source preview)" \
+            --title "twrpdtgen-NEXT ${version} (source preview)" \
             --notes-file docs/release-notes.md \
             --prerelease
