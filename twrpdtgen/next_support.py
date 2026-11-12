@@ -8,6 +8,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+import zlib
 import re
 from typing import Iterable, Optional
 
@@ -215,3 +216,81 @@ def valid_security_patch(value):
     except ValueError:
         return None
     return value
+
+
+def detect_kernel_image_name(kernel: Path) -> str:
+    """Infer the stock kernel artifact name from the extracted kernel bytes.
+
+    This is deliberately content-based instead of guessing from device family.
+    In particular, many legacy Android recovery images carry an Image.gz with
+    one or more DTBs appended after the gzip stream.
+    """
+    if kernel is None:
+        return "Image"
+    kernel = Path(kernel)
+    if not kernel.is_file():
+        return "Image"
+
+    with kernel.open("rb") as stream:
+        magic = stream.read(4)
+        stream.seek(0)
+        if magic[:2] != b"\x1f\x8b":
+            return "Image"
+
+        decoder = zlib.decompressobj(16 + zlib.MAX_WBITS)
+        appended = b""
+        while True:
+            chunk = stream.read(1024 * 1024)
+            if not chunk:
+                break
+            decoder.decompress(chunk)
+            if decoder.eof:
+                appended = decoder.unused_data
+                if len(appended) < 4:
+                    appended += stream.read(4 - len(appended))
+                break
+
+    if appended.startswith(b"\xd0\x0d\xfe\xed"):
+        return "Image.gz-dtb"
+    return "Image.gz"
+
+
+def format_twrp_fstab(fstab, *, system_as_root: bool = False) -> str:
+    """Render a conservative TWRP fstab without discarding wipe geometry.
+
+    sebaubuntu-libs' legacy TWRP formatter intentionally keeps only a small
+    flag subset. Preserve the stock length= reservation because dropping it can
+    overwrite footer metadata during a format. Logical/slotselect remain
+    preserved as before. System-as-root '/' is exposed as /system_root, which
+    is the conventional TWRP mount point for SAR devices.
+    """
+    entries = getattr(fstab, "entries", None)
+    if entries is None:
+        return fstab.format(twrp=True)
+
+    rendered = []
+    for entry in entries:
+        original_mount = entry.mount_point
+        mount_point = (
+            "/system_root"
+            if system_as_root and original_mount == "/"
+            else original_mount
+        )
+        if original_mount == "/" and system_as_root:
+            display = "System"
+        else:
+            display = Path(mount_point).name or "Root"
+
+        flags = [f'display="{display}"']
+        for flag in getattr(entry, "fs_flags", []):
+            if flag in ("logical", "slotselect", "wait"):
+                flags.append(flag)
+            elif flag.startswith("length="):
+                flags.append(flag)
+
+        rendered.append(
+            f"{mount_point} {entry.fs_type} {entry.src} "
+            f"flags={';'.join(flags)}"
+        )
+
+    return "\n".join(rendered) + "\n"
