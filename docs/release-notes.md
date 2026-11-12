@@ -1,27 +1,38 @@
-# twrpdtgen-NEXT 3.1.0a6 — launcher documentation
+# twrpdtgen-NEXT 3.1.0a7 — cloud firmware slicing
 
-This prerelease documents the cross-platform launcher workflow introduced in
-the previous previews.
+This prerelease implements cloud-assisted partial Samsung firmware extraction
+for users who need one payload without downloading the full firmware bundle to
+their local machine.
 
-- Adds `docs/launchers.md` as the complete launcher reference.
-- Documents Google Colab, Debian/Ubuntu Linux, Windows Command Prompt and
-  Windows PowerShell.
-- Defines the common image-to-output syntax for `launcher.sh` and
-  `launcher.cmd`.
-- Clarifies that `-o/--output` is an output parent directory and that the
-  generated tree is placed under `<output>/<manufacturer>/<codename>/`.
-- Adds examples for dedicated recovery, recovery-as-boot, split GKI layouts,
-  vendor_boot RECOVERY fragment selection, extract-only and component export.
-- Documents recovery-root policies, skeleton profiles, verified partition-size
-  overrides, overwrite behavior and generated Git repositories.
-- Documents launcher-only `--doctor`, `--self-test`, and `--setup-only`
-  commands.
-- Documents native Windows compression support, path quoting, symlink behavior,
-  legacy AIK/WSL limitations and Colab runtime persistence.
-- Adds troubleshooting for missing Python/images/fstab, ambiguous vendor_boot
-  fragments, existing output trees and pip failures.
-- Links the full guide from both the Windows and Colab sections of the README.
+- Adds `twrpdtgen.cloud_slice` with `fetch` and `slice` workflows.
+- Uses topjohnwu/samloader-rs for official Samsung FUS download/decryption.
+- Auto-bootstraps the matching samloader-rs release when it is not installed,
+  and requires/verifies GitHub's published SHA-256 asset digest before running
+  the downloaded executable.
+- Streams AP/BL/CP/CSC/HOME_CSC/USERDATA TAR.MD5 packages directly from the
+  decrypted firmware ZIP instead of unpacking full multi-gigabyte TAR trees.
+- Extracts only the requested payload and decodes Samsung LZ4 image members
+  directly into the final standalone file.
+- Adds package-aware selection so AP, CP, BL, and CSC payloads are searched in
+  the likely package first.
+- Deletes the full cloud firmware ZIP by default after a successful slice.
+- Adds `--keep-firmware`, `--work-dir`, `--package`, `--member`,
+  `--overwrite`, `--threads`, exact firmware `--version`, and
+  `--colab-download` controls.
+- Prints output size and SHA-256 for the final payload.
+- Adds the `twrpdtgen-cloud-slice` console entry point and root
+  `cloud-slice.sh` launcher.
+- Adds a one-click Google Colab notebook at
+  `colab/cloud_firmware_slice.ipynb`.
+- Adds synthetic regression tests for streamed TAR.MD5 extraction, LZ4 decode,
+  raw payload copy, package filtering, overwrite protection, and samloader
+  release selection.
+- Adds full documentation in `docs/cloud-firmware-slicing.md`.
 
-**Experimental source generator prerelease.** Documentation and launchers are
-validated against the current CLI and CI-tested launcher behavior. A generated
-candidate tree is not proof that a recovery image is safe to flash.
+This implementation extracts direct Odin-package members. It does not yet run a
+second lpunpack stage for logical partitions nested inside super.img.
+
+**Experimental source generator prerelease.** The slicing pipeline is covered by
+synthetic CI tests, but Samsung FUS availability and live firmware contents are
+external dependencies. Do not treat an extracted payload as safe to flash on a
+different model, bootloader revision, or partition layout.
