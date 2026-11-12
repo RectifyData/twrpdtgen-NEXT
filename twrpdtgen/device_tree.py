@@ -502,7 +502,8 @@ class DeviceTree:
                 "user.email; refusing to impersonate "
                 "the upstream author")
 
-        git_repo.index.add(["*"])
+        # Use Git itself so generated .gitignore rules are honored.
+        git_repo.git.add(A=True)
         commit_message = self._render_template(
             None,
             "commit_message",
