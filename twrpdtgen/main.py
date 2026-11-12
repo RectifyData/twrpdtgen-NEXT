@@ -124,19 +124,19 @@ def main():
     parser.add_argument(
         "--boot-size",
         type=parse_partition_size,
-        help="verified boot partition size in bytes")
+        help="verified boot partition size in bytes or KiB/MiB/GiB")
     parser.add_argument(
         "--recovery-size",
         type=parse_partition_size,
-        help="verified recovery partition size in bytes")
+        help="verified recovery partition size in bytes or KiB/MiB/GiB")
     parser.add_argument(
         "--super-size",
         type=parse_partition_size,
-        help="verified super partition size in bytes")
+        help="verified super partition size in bytes or KiB/MiB/GiB")
     parser.add_argument(
         "--dynamic-group-size",
         type=parse_partition_size,
-        help="verified dynamic group size in bytes")
+        help="verified dynamic group size in bytes or KiB/MiB/GiB")
     parser.add_argument(
         "--overwrite",
         action="store_true",
