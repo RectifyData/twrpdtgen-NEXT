@@ -109,6 +109,19 @@ def main():
         help=(
             "override detected recovery storage location"))
     parser.add_argument(
+        "--recovery-fragment",
+        help=(
+            "vendor_boot fragment name or numeric index to use as the "
+            "recovery source when automatic selection is ambiguous"))
+    parser.add_argument(
+        "--recovery-root-mode",
+        choices=("auto", "minimal", "full"),
+        default="auto",
+        help=(
+            "how stock recovery files seed recovery/root: auto preserves the "
+            "complete extracted ramdisk in stock-root and uses a conservative "
+            "device overlay; full must be requested explicitly"))
+    parser.add_argument(
         "--boot-size",
         type=parse_partition_size,
         help="verified boot partition size in bytes")
@@ -149,6 +162,7 @@ def main():
     options = NextOptions(
         skeleton=args.skeleton,
         recovery_layout=args.recovery_layout,
+        recovery_root_mode=args.recovery_root_mode,
         boot_size=args.boot_size,
         recovery_size=args.recovery_size,
         super_size=args.super_size,
@@ -163,7 +177,8 @@ def main():
         options=options,
         boot_image=args.boot_image,
         vendor_boot=args.vendor_boot,
-        init_boot=args.init_boot)
+        init_boot=args.init_boot,
+        recovery_fragment=args.recovery_fragment)
     try:
         folder = device_tree.dump_to_folder(
             args.output,

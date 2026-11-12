@@ -51,6 +51,7 @@ class ProductTemplateTests(unittest.TestCase):
             current_year="2026", skeleton="twrp-14.1",
             device_info=device, image_info=image,
             product_prefix="twrp", recovery_layout="vendor_boot",
+            recovery_source=Obj(kind="vendor_boot_recovery_fragment"),
             dynamic_partition_names=[], ab_partition_names=[],
             security_patch=None, next_options=options)
         self.assertIn("BOARD_BOOT_HEADER_VERSION := 4", out)
@@ -60,12 +61,27 @@ class ProductTemplateTests(unittest.TestCase):
         self.assertIn("BOARD_USES_VENDOR_BOOTIMAGE := true", out)
         self.assertIn(
             "BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT := true", out)
+        self.assertIn(
+            "BOARD_INCLUDE_RECOVERY_RAMDISK_IN_VENDOR_BOOT := true", out)
         self.assertIn("BOARD_KERNEL_OFFSET := 268468224", out)
         self.assertIn("BOARD_VENDOR_CMDLINE := vendor bootconfig", out)
         self.assertIn(
             "BOARD_VENDOR_BOOTCONFIG := $(DEVICE_PATH)/prebuilt/bootconfig",
             out)
         self.assertNotIn("BOARD_BOOTIMG_HEADER_VERSION :=", out)
+
+        merged = render_template(
+            None, "BoardConfig.mk", to_file=False,
+            current_year="2026", skeleton="twrp-14.1",
+            device_info=device, image_info=image,
+            product_prefix="twrp", recovery_layout="vendor_boot",
+            recovery_source=Obj(kind="vendor_boot_merged_recovery"),
+            dynamic_partition_names=[], ab_partition_names=[],
+            security_patch=None, next_options=options)
+        self.assertIn(
+            "BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT := true", merged)
+        self.assertNotIn(
+            "BOARD_INCLUDE_RECOVERY_RAMDISK_IN_VENDOR_BOOT := true", merged)
 
     def test_board_does_not_spoof_sizes_or_patch(self):
         template = Path("twrpdtgen/templates/BoardConfig.mk.jinja2").read_text()

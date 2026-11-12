@@ -18,8 +18,9 @@ AB_OTA_PARTITIONS += {{ ab_partition_names | join(' ') }}
 {% if recovery_layout == "boot" %}
 BOARD_USES_RECOVERY_AS_BOOT := true
 {% elif recovery_layout == "vendor_boot" %}
-# Recovery ramdisk fragment detected in vendor_boot. Confirm the exact TWRP
-# branch flags for this device before building/repacking vendor_boot.
+# Recovery resources live in vendor_boot. Whether they use a separate typed
+# RECOVERY fragment or are merged into the default vendor ramdisk is preserved
+# below from the selected stock recovery source.
 {% elif recovery_layout == "unknown" %}
 # TODO: Verify whether recovery is dedicated, in boot, or in vendor_boot.
 {% endif %}
@@ -90,7 +91,13 @@ BOARD_BUILD_VENDOR_BOOT_IMAGE := true
 {% endif %}
 {% if recovery_layout == "vendor_boot" %}
 BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT := true
+{% if recovery_source.kind == "vendor_boot_recovery_fragment" %}
+# Stock vendor_boot has a separate type=RECOVERY fragment.
 BOARD_INCLUDE_RECOVERY_RAMDISK_IN_VENDOR_BOOT := true
+{% else %}
+# Stock recovery resources are merged into the vendor ramdisk; do not invent
+# a separate RECOVERY fragment because header-v3 and merged-v4 layouts differ.
+{% endif %}
 {% endif %}
 {% if image_info.base_address is not none %}
 BOARD_KERNEL_BASE := {{ image_info.base_address }}

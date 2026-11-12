@@ -32,6 +32,10 @@ from twrpdtgen.next_support import (
     safe_component,
     valid_security_patch,
 )
+from twrpdtgen.ramdisk_skeleton import (
+    materialize_recovery_skeleton,
+    write_ramdisk_manifest,
+)
 from twrpdtgen.templates import render_template
 
 
@@ -53,12 +57,6 @@ BUILDPROP_LOCATIONS += [
     Path("vendor/default.prop"),
 ]
 
-INIT_RC_LOCATIONS = [Path()]
-INIT_RC_LOCATIONS += [
-    Path(directory) / "etc" / "init"
-    for directory in ("system", "vendor")
-]
-
 
 class DeviceTree:
     """Build a conservative candidate TWRP device tree."""
@@ -69,12 +67,15 @@ class DeviceTree:
             options: NextOptions = None,
             boot_image: Path = None,
             vendor_boot: Path = None,
-            init_boot: Path = None):
+            init_boot: Path = None,
+            recovery_fragment: str = None):
         self.image = Path(image)
         self.options = options or NextOptions()
         self.current_year = str(datetime.now().year)
         self.aik_manager = None
         self.modern_manager = None
+        self.recovery_fragment = recovery_fragment
+        self._legacy_ramdisk_root = None
 
         if not self.image.is_file():
             raise FileNotFoundError(
@@ -105,8 +106,8 @@ class DeviceTree:
                     "No ramdisk found in the supplied image")
             self.ramdisk_roots = [
                 Path(self.image_info.ramdisk)]
-            self.recovery_ramdisk_roots = list(
-                self.ramdisk_roots)
+            self._legacy_ramdisk_root = self.ramdisk_roots[0]
+            self.recovery_ramdisk_roots = []
 
         LOGD("Getting device infos...")
         self.build_prop = BuildProp()
@@ -151,6 +152,15 @@ class DeviceTree:
                 "vendor_build_security_patch",
                 None))
 
+        (
+            self.recovery_ramdisk_roots,
+            self.recovery_source,
+        ) = self._select_recovery_ramdisk()
+        self.recovery_root_mode = (
+            self.options.recovery_root_mode
+            if self.options.recovery_root_mode != "auto"
+            else "minimal")
+
         fstab_roots = list(
             self.recovery_ramdisk_roots)
         fstab_roots += [
@@ -180,19 +190,142 @@ class DeviceTree:
                 for partition
                 in self.fstab.get_ab_partitions_models()))
 
-        # Later ramdisk roots override same-named generic init scripts.
-        init_scripts = {}
-        for root in self.ramdisk_roots:
-            for location in INIT_RC_LOCATIONS:
-                init_path = root / location
-                if not init_path.is_dir():
-                    continue
-                for init_rc in init_path.iterdir():
-                    if (
-                            init_rc.name.endswith(".rc")
-                            and init_rc.name != "init.rc"):
-                        init_scripts[init_rc.name] = init_rc
-        self.init_rcs = list(init_scripts.values())
+    def _select_recovery_ramdisk(self):
+        """Select the actual recovery payload without treating init_boot as recovery."""
+        if self.modern_manager is None:
+            if self.recovery_fragment is not None:
+                raise ValueError(
+                    "--recovery-fragment only applies to vendor_boot v4")
+            if self.recovery_layout not in ("dedicated", "boot"):
+                raise ValueError(
+                    "Could not identify a recovery ramdisk from this image; "
+                    "use recovery.img or a verified recovery-as-boot layout")
+            return [self._legacy_ramdisk_root], {
+                "kind": (
+                    "dedicated_recovery"
+                    if self.recovery_layout == "dedicated"
+                    else "recovery_as_boot"),
+                "image": self.image.name,
+            }
+
+        images = list(self.image_info.source_images)
+        by_kind = {item.kind: item for item in images}
+        recovery_image = by_kind.get("recovery")
+        boot_image = by_kind.get("boot")
+        vendor_image = by_kind.get("vendor_boot")
+
+        if self.recovery_layout == "dedicated":
+            if recovery_image is None or not recovery_image.ramdisk_roots:
+                raise ValueError(
+                    "Dedicated recovery was selected but no recovery.img "
+                    "ramdisk was supplied")
+            return list(recovery_image.ramdisk_roots), {
+                "kind": "dedicated_recovery",
+                "image": recovery_image.source.name,
+            }
+
+        if self.recovery_layout == "boot":
+            if boot_image is None or not boot_image.ramdisk_roots:
+                raise ValueError(
+                    "Recovery-as-boot was selected but boot.img has no ramdisk")
+            return list(boot_image.ramdisk_roots), {
+                "kind": "recovery_as_boot",
+                "image": boot_image.source.name,
+            }
+
+        if self.recovery_layout != "vendor_boot":
+            raise ValueError(
+                "No reliable recovery ramdisk was found. Supply recovery.img, "
+                "a vendor_boot RECOVERY fragment, or override a verified "
+                "--recovery-layout.")
+
+        if vendor_image is None:
+            raise ValueError(
+                "vendor_boot recovery layout selected without vendor_boot.img")
+
+        fragments = list(vendor_image.vendor_ramdisk_fragments)
+        typed = [
+            fragment for fragment in fragments
+            if fragment.ramdisk_type == 2
+        ]
+
+        if self.recovery_fragment is not None:
+            key = str(self.recovery_fragment)
+            matches = [
+                fragment for fragment in fragments
+                if fragment.name == key or str(fragment.index) == key
+            ]
+            if len(matches) != 1:
+                raise ValueError(
+                    f"Recovery fragment selector {key!r} matched "
+                    f"{len(matches)} vendor ramdisk fragments")
+            selected = matches[0]
+            if selected.ramdisk_type == 3:
+                raise ValueError(
+                    "A DLKM vendor ramdisk fragment cannot be used as the "
+                    "recovery root")
+            if typed and selected.ramdisk_type != 2:
+                raise ValueError(
+                    "Typed RECOVERY fragments exist; select one of those "
+                    "instead of a PLATFORM/NONE fragment")
+            return [selected.root], {
+                "kind": (
+                    "vendor_boot_recovery_fragment"
+                    if selected.ramdisk_type == 2
+                    else "vendor_boot_selected_fragment"),
+                "image": vendor_image.source.name,
+                "fragment_index": selected.index,
+                "fragment_name": selected.name,
+                "fragment_type": selected.type_name,
+                "board_id": list(selected.board_id),
+            }
+
+        if len(typed) == 1:
+            selected = typed[0]
+            return [selected.root], {
+                "kind": "vendor_boot_recovery_fragment",
+                "image": vendor_image.source.name,
+                "fragment_index": selected.index,
+                "fragment_name": selected.name,
+                "fragment_type": selected.type_name,
+                "board_id": list(selected.board_id),
+            }
+        if len(typed) > 1:
+            choices = ", ".join(
+                f"{fragment.index}:{fragment.name or '(unnamed)'}"
+                for fragment in typed)
+            raise ValueError(
+                "vendor_boot contains multiple RECOVERY fragments. "
+                "Their board_id encoding is vendor-defined, so automatic "
+                f"selection would be unsafe. Use --recovery-fragment with: {choices}")
+
+        # v3 has one untyped vendor ramdisk. Some v4 devices also merge
+        # recovery resources into one default PLATFORM/NONE fragment instead of
+        # creating a RECOVERY fragment. One such source is unambiguous; several
+        # board-specific fragments are not.
+        candidates = [
+            fragment for fragment in fragments
+            if fragment.ramdisk_type in (0, 1)
+        ]
+        if len(candidates) == 1:
+            selected = candidates[0]
+            return [selected.root], {
+                "kind": "vendor_boot_merged_recovery",
+                "image": vendor_image.source.name,
+                "fragment_index": selected.index,
+                "fragment_name": selected.name,
+                "fragment_type": selected.type_name,
+                "board_id": list(selected.board_id),
+            }
+        if len(vendor_image.ramdisk_roots) == 1:
+            return list(vendor_image.ramdisk_roots), {
+                "kind": "vendor_boot_merged_recovery",
+                "image": vendor_image.source.name,
+            }
+        raise ValueError(
+            "vendor_boot has no typed RECOVERY fragment and multiple possible "
+            "vendor ramdisks. Automatic merging could select the wrong board "
+            "variant; pass --recovery-fragment after checking manifest.json.")
 
     def dump_to_folder(
             self,
@@ -213,6 +346,10 @@ class DeviceTree:
             device_tree_folder
             / "recovery"
             / "root")
+        stock_recovery_root_path = (
+            device_tree_folder
+            / "recovery"
+            / "stock-root")
 
         LOGD("Creating device tree folders...")
         if (
@@ -236,6 +373,10 @@ class DeviceTree:
         recovery_root_path.mkdir(parents=True)
 
         LOGD("Writing makefiles/blueprints")
+        self._render_template(
+            device_tree_folder,
+            "gitignore",
+            out_file=".gitignore")
         self._render_template(
             device_tree_folder,
             "Android.bp",
@@ -316,19 +457,23 @@ class DeviceTree:
                     sort_keys=True) + "\n",
                 encoding="utf-8")
 
-        LOGD("Copying fstab...")
+        LOGD("Extracting selected recovery ramdisk into skeleton...")
+        ramdisk_manifest = materialize_recovery_skeleton(
+            self.recovery_ramdisk_roots,
+            stock_recovery_root_path,
+            recovery_root_path,
+            self.recovery_root_mode)
+        ramdisk_manifest["source"] = self.recovery_source
+        write_ramdisk_manifest(
+            device_tree_folder / "recovery" / "ramdisk-manifest.json",
+            ramdisk_manifest)
+
+        LOGD("Writing generated TWRP fstab...")
         (
             device_tree_folder
             / "recovery.fstab"
         ).write_text(
             self.fstab.format(twrp=True))
-
-        LOGD("Copying init scripts...")
-        for init_rc in self.init_rcs:
-            copyfile(
-                init_rc,
-                recovery_root_path / init_rc.name,
-                follow_symlinks=True)
 
         if not git:
             return device_tree_folder
@@ -357,7 +502,8 @@ class DeviceTree:
                 "user.email; refusing to impersonate "
                 "the upstream author")
 
-        git_repo.index.add(["*"])
+        # Use Git itself so generated .gitignore rules are honored.
+        git_repo.git.add(A=True)
         commit_message = self._render_template(
             None,
             "commit_message",
@@ -393,6 +539,8 @@ class DeviceTree:
             android_api=self.android_api,
             product_prefix=self.product_prefix,
             recovery_layout=self.recovery_layout,
+            recovery_source=self.recovery_source,
+            recovery_root_mode=self.recovery_root_mode,
             dynamic_partition_names=(
                 self.dynamic_partition_names),
             ab_partition_names=(

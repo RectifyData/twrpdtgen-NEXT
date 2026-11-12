@@ -1,19 +1,32 @@
-# twrpdtgen-NEXT 3.1.0a2 — Android 13–16 image extraction preview
+# twrpdtgen-NEXT 3.1.0a3 — recovery-ramdisk skeleton generation
 
-This prerelease removes the earlier "skeleton only" limitation for modern
-split boot layouts.
+This prerelease changes skeleton generation to use the selected recovery
+ramdisk itself rather than copying only a few init scripts.
 
-- Native parsing for AOSP boot/recovery header v3/v4.
-- Android 13+ init_boot v4 generic-ramdisk extraction.
-- vendor_boot v3/v4 parsing, DTB extraction, bootconfig extraction, and v4
-  vendor ramdisk table support.
-- PLATFORM, RECOVERY, DLKM and unnamed vendor ramdisk fragments.
-- Combined boot + init_boot + vendor_boot metadata for tree generation.
-- Safe newc CPIO extraction plus LZ4 legacy/frame support.
-- Persistent \`--extract-only\` and \`--extract-to\` workflows with
-  machine-readable \`manifest.json\`.
-- Split-ramdisk property and recovery-fstab discovery.
-- Synthetic header-v3/v4 regression fixtures; CI needs no proprietary firmware.
+- Preserves the complete expanded selected recovery payload in
+  `recovery/stock-root/`.
+- Seeds the actual Android/TWRP build overlay in `recovery/root/`.
+- The complete selected recovery payload is always preserved in stock-root,
+  including typed vendor_boot RECOVERY fragments.
+- Auto mode always uses a conservative build overlay so stock recovery, init,
+  adbd and generic framework files do not replace TWRP; full overlay is an
+  explicit override.
+- Adds deterministic `--recovery-fragment` selection when vendor_boot has
+  multiple board-specific recovery fragments; unsafe board_id guessing is
+  rejected.
+- Adds `--recovery-root-mode auto|minimal|full`.
+- Recovery fstab selection now follows the selected recovery source first.
+- Dedicated recovery.img takes precedence over a companion vendor_boot hint.
+- Adds `recovery/ramdisk-manifest.json` with source and copy provenance.
+- Ramdisk tree copying preserves safe relative symlinks and rejects escaping
+  symlink targets/special host entries.
+- Uses hardlinks for stock-root regular files when possible, with copy fallback
+  across filesystems, avoiding a second full ramdisk write.
+- Generated .gitignore keeps the full stock-root out of device-tree Git history
+  while leaving the manifest and build overlay trackable.
+- Adds regression coverage for stock-root preservation, minimal/full overlay
+  behavior and vendor recovery-fragment selection.
 
-**Experimental source generator prerelease.** Image parser tests validate
-container handling, not recovery bootability on physical hardware.
+**Experimental source generator prerelease.** Recovery-root extraction and
+skeleton placement are validated by tests, but physical-device bootability
+still depends on device-specific kernel, AVB, SELinux and decryption support.

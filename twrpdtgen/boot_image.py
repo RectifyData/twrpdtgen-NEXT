@@ -412,6 +412,19 @@ def _parse_boot(path, output):
         recovery_layout_hint=hint)
 
 
+def looks_like_recovery_payload(root):
+    """Detect high-confidence recovery resources inside a merged ramdisk."""
+    root = Path(root)
+    for candidate in (
+            "system/bin/recovery",
+            "sbin/recovery",
+            "etc/recovery.fstab",
+            "system/etc/recovery.fstab"):
+        if (root / candidate).is_file():
+            return True
+    return any(root.glob("init.recovery*.rc"))
+
+
 def _parse_vendor_boot(path, output):
     image_size = Path(path).stat().st_size
     with Path(path).open("rb") as image:
@@ -537,7 +550,10 @@ def _parse_vendor_boot(path, output):
         product_name=product_name,
         vendor_ramdisk_fragments=fragments,
         recovery_layout_hint=(
-            "vendor_boot" if recovery_roots else None))
+            "vendor_boot"
+            if recovery_roots
+            or any(looks_like_recovery_payload(root) for root in roots)
+            else None))
 
 
 def unpack_modern_image(path, output):
@@ -631,14 +647,18 @@ class ModernImageManager:
             raise ImageFormatError(
                 "No extractable ramdisk found in supplied images")
         address_source = vendor or boot_source
+        recovery_image = by_kind.get("recovery")
         layout_hint = (
-            vendor.recovery_layout_hint
-            if vendor and vendor.recovery_layout_hint
-            else next(
-                (item.recovery_layout_hint
-                 for item in self.parsed
-                 if item.recovery_layout_hint),
-                None))
+            "dedicated"
+            if recovery_image is not None
+            else (
+                vendor.recovery_layout_hint
+                if vendor and vendor.recovery_layout_hint
+                else next(
+                    (item.recovery_layout_hint
+                     for item in self.parsed
+                     if item.recovery_layout_hint),
+                    None)))
         return CombinedImageInfo(
             source_images=self.parsed,
             primary=primary,
