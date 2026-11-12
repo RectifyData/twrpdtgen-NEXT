@@ -322,6 +322,19 @@ def format_twrp_fstab(fstab, *, system_as_root: bool = False) -> str:
     return "\n".join(rendered) + "\n"
 
 
+def _is_display_brightness_path(path: str) -> bool:
+    """Return true only for sysfs nodes that are clearly display backlights."""
+    if re.fullmatch(
+            r"/sys/class/backlight/[^/]+/brightness",
+            path):
+        return True
+    return bool(re.fullmatch(
+        r"/sys/class/leds/[^/]*(?:lcd|panel|backlight)[^/]*/brightness",
+        path,
+        flags=re.IGNORECASE,
+    ))
+
+
 def detect_brightness_policy(ramdisk_or_roots):
     """Infer recovery brightness settings from explicit stock init writes.
 
@@ -365,7 +378,7 @@ def detect_brightness_policy(ramdisk_or_roots):
                 if not match:
                     continue
                 brightness_path, raw_value = match.groups()
-                if not brightness_path.startswith("/sys/"):
+                if not _is_display_brightness_path(brightness_path):
                     continue
                 matches.append((
                     brightness_path,
