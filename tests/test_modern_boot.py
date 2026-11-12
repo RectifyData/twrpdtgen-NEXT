@@ -330,6 +330,18 @@ class ModernBootTests(unittest.TestCase):
         self.assertEqual(legacy_raw, self.cpio)
         self.assertEqual(frame_raw, self.cpio)
 
+    def test_cpio_windows_backslash_traversal_is_rejected(self):
+        archive = newc([
+            (
+                "..\\outside",
+                b"x",
+                stat.S_IFREG | 0o644),
+        ])
+        with tempfile.TemporaryDirectory() as temp:
+            with self.assertRaises(ImageFormatError):
+                extract_newc(
+                    archive, Path(temp) / "root")
+
     def test_cpio_path_traversal_is_rejected(self):
         archive = newc([
             (
