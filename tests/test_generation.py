@@ -94,6 +94,13 @@ class GenerationTests(unittest.TestCase):
             (ramdisk / "etc").mkdir(parents=True)
             (ramdisk / "etc/recovery.fstab").write_text("# stock\n")
             (ramdisk / "prop.default").write_text("ro.build.version.sdk=34\n")
+            (ramdisk / "system/bin").mkdir(parents=True)
+            (ramdisk / "system/bin/recovery").write_text("stock recovery binary")
+            (ramdisk / "init.rc").write_text("generic stock init")
+            (ramdisk / "init.recovery.exynos9820.rc").write_text(
+                "on init\n    setprop recovery.device 1\n")
+            (ramdisk / "vendor/firmware").mkdir(parents=True)
+            (ramdisk / "vendor/firmware/tsp.bin").write_bytes(b"firmware")
             kernel = tmp / "kernel"
             kernel.write_bytes(b"stub-kernel")
             image_info = Obj(ramdisk=ramdisk, kernel=kernel,
@@ -111,6 +118,24 @@ class GenerationTests(unittest.TestCase):
             self.assertFalse((tree / "vendorsetup.sh").exists())
             self.assertEqual((tree / "prebuilt/kernel").read_bytes(), b"stub-kernel")
             self.assertIn("twrp-14.1", (tree / "README.md").read_text())
+            # The complete stock ramdisk is preserved for audit/reuse, while
+            # auto mode does not overwrite TWRP's own generic recovery/init.
+            self.assertEqual(
+                (tree / "recovery/stock-root/system/bin/recovery").read_text(),
+                "stock recovery binary")
+            self.assertEqual(
+                (tree / "recovery/stock-root/init.rc").read_text(),
+                "generic stock init")
+            self.assertFalse((tree / "recovery/root/system/bin/recovery").exists())
+            self.assertFalse((tree / "recovery/root/init.rc").exists())
+            self.assertTrue(
+                (tree / "recovery/root/init.recovery.exynos9820.rc").is_file())
+            self.assertEqual(
+                (tree / "recovery/root/vendor/firmware/tsp.bin").read_bytes(),
+                b"firmware")
+            manifest = (tree / "recovery/ramdisk-manifest.json").read_text()
+            self.assertIn('"mode": "minimal"', manifest)
+            self.assertIn('"kind": "dedicated_recovery"', manifest)
             board = (tree / "BoardConfig.mk").read_text()
             self.assertIn("TARGET_RECOVERY_FSTAB :=", board)
             self.assertIn("# Detected logical partitions: system vendor", board)
