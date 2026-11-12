@@ -22,15 +22,15 @@ The selected stock recovery payload is extracted once and reused directly.
   the entries copied into both trees.
 
 {% if recovery_root_mode == "full" %}
-This source is a typed vendor_boot RECOVERY fragment, or full mode was
-explicitly requested. Its complete payload is placed in recovery/root because
-AOSP builds a typed RECOVERY fragment from the recovery staging root itself.
+Full mode was explicitly requested, so the complete selected recovery payload
+is also placed in recovery/root. This can replace files supplied by TWRP and
+should only be used when that exact overlay is intended.
 {% else %}
-This source is a complete stock recovery/boot ramdisk or a merged vendor
-ramdisk. Auto mode keeps the complete extraction in stock-root but seeds only
+Auto/minimal mode keeps the complete extraction in stock-root but seeds only
 device-specific init, vendor/odm, firmware/module and VINTF content into
-recovery/root. This prevents stock recovery, stock init, adbd and generic
-system files from replacing TWRP's own recovery implementation.
+recovery/root. This applies to typed RECOVERY fragments too, preventing stock
+recovery, stock init, adbd and generic system files from replacing TWRP's own
+recovery implementation.
 {% endif %}
 
 {% if image_info.source_images is defined %}
