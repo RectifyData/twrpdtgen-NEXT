@@ -64,7 +64,6 @@ call :ensure_python_deps || exit /b 1
 set "PYTHONPATH=%ROOT_DIR%;%PYTHONPATH%"
 %PYTHON_CMD% -c "import git,jinja2,lz4,zstandard,sebaubuntu_libs,twrpdtgen,sys; print('python:',sys.version.split()[0]); print('twrpdtgen-NEXT:',twrpdtgen.__version__)"
 if errorlevel 1 exit /b 1
-%PYTHON_CMD% -c "import os,tempfile,pathlib; p=pathlib.Path(tempfile.mkdtemp()); a=p/'a'; b=p/'b'; a.write_text('x'); ok=True; exec('try:\n b.symlink_to(a.name)\nexcept OSError:\n ok=False'); print('windows symlinks:', 'available' if ok else 'unavailable (Developer Mode/admin may be needed)')"
 echo [twrpdtgen-NEXT] Environment check passed.
 exit /b 0
 
