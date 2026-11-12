@@ -114,6 +114,15 @@ class GenerationTests(unittest.TestCase):
             generator = DeviceTree(image)
             tree = generator.dump_to_folder(tmp / "output")
             self.assertTrue((tree / "twrp_beyond2lte.mk").is_file())
+            self.assertTrue((tree / "proprietary-files.txt").is_file())
+            self.assertIn(
+                "No proprietary blob list can be inferred safely",
+                (tree / "proprietary-files.txt").read_text(),
+            )
+            self.assertEqual(
+                (tree / "recovery.stock.fstab").read_text(),
+                "# stock\n",
+            )
             self.assertFalse((tree / "omni_beyond2lte.mk").exists())
             self.assertFalse((tree / "vendorsetup.sh").exists())
             self.assertIn(
