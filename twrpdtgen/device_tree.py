@@ -57,12 +57,6 @@ BUILDPROP_LOCATIONS += [
     Path("vendor/default.prop"),
 ]
 
-INIT_RC_LOCATIONS = [Path()]
-INIT_RC_LOCATIONS += [
-    Path(directory) / "etc" / "init"
-    for directory in ("system", "vendor")
-]
-
 
 class DeviceTree:
     """Build a conservative candidate TWRP device tree."""
