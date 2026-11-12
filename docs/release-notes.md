@@ -1,38 +1,28 @@
-# twrpdtgen-NEXT 3.1.0a7 — cloud firmware slicing
+# twrpdtgen-NEXT 3.1.0a8 — Samsung LZ4 + Colab error fix
 
-This prerelease implements cloud-assisted partial Samsung firmware extraction
-for users who need one payload without downloading the full firmware bundle to
-their local machine.
+This prerelease fixes a real failure found while extracting recovery from
+Samsung Galaxy A20s SM-A207F / NEE firmware.
 
-- Adds `twrpdtgen.cloud_slice` with `fetch` and `slice` workflows.
-- Uses topjohnwu/samloader-rs for official Samsung FUS download/decryption.
-- Auto-bootstraps the matching samloader-rs release when it is not installed,
-  and requires/verifies GitHub's published SHA-256 asset digest before running
-  the downloaded executable.
-- Streams AP/BL/CP/CSC/HOME_CSC/USERDATA TAR.MD5 packages directly from the
-  decrypted firmware ZIP instead of unpacking full multi-gigabyte TAR trees.
-- Extracts only the requested payload and decodes Samsung LZ4 image members
-  directly into the final standalone file.
-- Adds package-aware selection so AP, CP, BL, and CSC payloads are searched in
-  the likely package first.
-- Deletes the full cloud firmware ZIP by default after a successful slice.
-- Adds `--keep-firmware`, `--work-dir`, `--package`, `--member`,
-  `--overwrite`, `--threads`, exact firmware `--version`, and
-  `--colab-download` controls.
-- Prints output size and SHA-256 for the final payload.
-- Adds the `twrpdtgen-cloud-slice` console entry point and root
-  `cloud-slice.sh` launcher.
-- Adds a one-click Google Colab notebook at
-  `colab/cloud_firmware_slice.ipynb`.
-- Adds synthetic regression tests for streamed TAR.MD5 extraction, LZ4 decode,
-  raw payload copy, package filtering, overwrite protection, and samloader
-  release selection.
-- Adds full documentation in `docs/cloud-firmware-slicing.md`.
+- Adds streaming support for Samsung/Android **legacy LZ4** payloads
+  (magic `02 21 4c 18`) used by Odin firmware images such as
+  `recovery.img.lz4`.
+- Keeps standard LZ4 frame support (magic `04 22 4d 18`).
+- Decodes legacy LZ4 in 8 MiB blocks without loading the entire image into
+  memory, preserving the cloud-slicing design for large firmware payloads.
+- Rejects truncated/invalid legacy blocks and unknown LZ4 magic with clear
+  diagnostics.
+- Changes the cloud slicer CLI to print a concise
+  `[cloud-slice] ERROR: ...` message instead of an internal Python traceback
+  for expected input/download/archive failures.
+- Changes the Colab notebook to invoke the slicer directly, so a real failure
+  reason is displayed instead of a generic outer `CalledProcessError`.
+- Adds a synthetic Samsung legacy-LZ4 regression fixture.
+- Live diagnostics confirmed that Samsung FUS metadata lookup and firmware
+  transfer startup work for `SM-A207F / NEE`; the current version returned is
+  `A207FXXS5CWF1/A207FOXM5CWD1/A207FXXS5CWD1/A207FXXS5CWF1`.
+- Removes the temporary device-specific FUS probes from permanent CI after
+  diagnosis.
 
-This implementation extracts direct Odin-package members. It does not yet run a
-second lpunpack stage for logical partitions nested inside super.img.
-
-**Experimental source generator prerelease.** The slicing pipeline is covered by
-synthetic CI tests, but Samsung FUS availability and live firmware contents are
-external dependencies. Do not treat an extracted payload as safe to flash on a
-different model, bootloader revision, or partition layout.
+**Experimental source generator prerelease.** The legacy-LZ4 extraction path is
+CI-tested and the A20s FUS transfer was verified to start, but a complete
+multi-gigabyte live firmware download is intentionally not part of CI.

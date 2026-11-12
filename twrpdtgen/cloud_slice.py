@@ -17,13 +17,16 @@ from pathlib import Path
 import platform
 import shutil
 import stat
+import struct
 import subprocess
+import sys
 import tarfile
 import tempfile
 from typing import BinaryIO, Iterable, Optional
 from urllib.request import Request, urlopen
 import zipfile
 
+import lz4.block
 import lz4.frame
 
 
@@ -33,6 +36,12 @@ SAMLOADER_RELEASE_API = (
 USER_AGENT = "twrpdtgen-NEXT-cloud-slice/1"
 PACKAGE_ORDER = ("AP", "BL", "CP", "CSC", "HOME_CSC", "USERDATA", "OTHER")
 COPY_BUFFER = 1024 * 1024
+LZ4_FRAME_MAGIC = b"\x04\x22\x4d\x18"
+LZ4_LEGACY_MAGIC = b"\x02\x21\x4c\x18"
+LZ4_LEGACY_BLOCK = 8 * 1024 * 1024
+LZ4_LEGACY_COMPRESSED_MAX = (
+    LZ4_LEGACY_BLOCK + LZ4_LEGACY_BLOCK // 255 + 16
+)
 
 
 class CloudSliceError(RuntimeError):
@@ -365,6 +374,110 @@ def _default_output_for_partition(partition: str) -> Path:
     return Path(f"{name}.img")
 
 
+def _read_stream_exact(source: BinaryIO, size: int) -> bytes:
+    chunks = []
+    remaining = size
+    while remaining:
+        chunk = source.read(remaining)
+        if not chunk:
+            raise CloudSliceError(
+                "Truncated compressed payload while reading Samsung LZ4 data"
+            )
+        chunks.append(chunk)
+        remaining -= len(chunk)
+    return b"".join(chunks)
+
+
+def _decode_lz4_frame(
+        source: BinaryIO,
+        out: BinaryIO,
+        first: bytes,
+        payload_member: str,
+) -> None:
+    decoder = lz4.frame.LZ4FrameDecompressor()
+    chunk = first
+    try:
+        while chunk:
+            decoded = decoder.decompress(chunk)
+            if decoded:
+                out.write(decoded)
+            if decoder.eof:
+                return
+            chunk = source.read(COPY_BUFFER)
+    except (RuntimeError, ValueError, lz4.frame.LZ4FrameError) as exc:
+        raise CloudSliceError(
+            f"Invalid standard LZ4 frame in {payload_member}: {exc}"
+        ) from exc
+    raise CloudSliceError(
+        f"Truncated standard LZ4 frame in {payload_member}"
+    )
+
+
+def _decode_lz4_legacy(
+        source: BinaryIO,
+        out: BinaryIO,
+        payload_member: str,
+) -> None:
+    while True:
+        size_bytes = source.read(4)
+        if not size_bytes:
+            return
+        if len(size_bytes) != 4:
+            raise CloudSliceError(
+                f"Truncated legacy LZ4 block header in {payload_member}"
+            )
+        if size_bytes == b"\x00\x00\x00\x00":
+            return
+        if size_bytes in (LZ4_FRAME_MAGIC, LZ4_LEGACY_MAGIC):
+            # A following frame magic is a valid implicit end marker for the
+            # legacy format. Samsung Odin payloads normally contain one frame.
+            return
+
+        compressed_size = struct.unpack("<I", size_bytes)[0]
+        if (
+                compressed_size <= 0
+                or compressed_size > LZ4_LEGACY_COMPRESSED_MAX):
+            raise CloudSliceError(
+                f"Invalid legacy LZ4 block size {compressed_size} "
+                f"in {payload_member}"
+            )
+        block = _read_stream_exact(source, compressed_size)
+        try:
+            decoded = lz4.block.decompress(
+                block,
+                uncompressed_size=LZ4_LEGACY_BLOCK,
+            )
+        except lz4.block.LZ4BlockError as exc:
+            raise CloudSliceError(
+                f"Invalid Samsung/Android legacy LZ4 block "
+                f"in {payload_member}: {exc}"
+            ) from exc
+        if len(decoded) > LZ4_LEGACY_BLOCK:
+            raise CloudSliceError(
+                f"Legacy LZ4 block expanded past 8 MiB "
+                f"in {payload_member}"
+            )
+        out.write(decoded)
+
+
+def _decode_lz4_payload(
+        source: BinaryIO,
+        out: BinaryIO,
+        payload_member: str,
+) -> str:
+    magic = _read_stream_exact(source, 4)
+    if magic == LZ4_FRAME_MAGIC:
+        _decode_lz4_frame(source, out, magic, payload_member)
+        return "lz4"
+    if magic == LZ4_LEGACY_MAGIC:
+        _decode_lz4_legacy(source, out, payload_member)
+        return "lz4_legacy"
+    raise CloudSliceError(
+        f"{payload_member} has unknown LZ4 magic {magic.hex()}; "
+        "expected standard 04224d18 or Samsung/Android legacy 02214c18"
+    )
+
+
 def _copy_payload(
         source: BinaryIO,
         payload_member: str,
@@ -376,14 +489,9 @@ def _copy_payload(
     try:
         with temporary.open("wb") as out:
             if payload_member.lower().endswith(".lz4"):
-                try:
-                    with lz4.frame.open(source, mode="rb") as decoded:
-                        shutil.copyfileobj(decoded, out, COPY_BUFFER)
-                except (RuntimeError, ValueError, lz4.frame.LZ4FrameError) as exc:
-                    raise CloudSliceError(
-                        f"{payload_member} is not a supported LZ4 frame"
-                    ) from exc
-                compression = "lz4"
+                compression = _decode_lz4_payload(
+                    source, out, payload_member
+                )
             else:
                 shutil.copyfileobj(source, out, COPY_BUFFER)
                 compression = "none"
@@ -596,9 +704,7 @@ def build_parser() -> ArgumentParser:
     return parser
 
 
-def main(argv: Optional[Iterable[str]] = None) -> int:
-    args = build_parser().parse_args(list(argv) if argv is not None else None)
-
+def _run(args) -> int:
     if args.command == "slice":
         result = slice_firmware(
             args.firmware,
@@ -658,6 +764,25 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
         if temporary_context is not None:
             temporary_context.cleanup()
     return 0
+
+
+def main(argv: Optional[Iterable[str]] = None) -> int:
+    parser = build_parser()
+    try:
+        args = parser.parse_args(
+            list(argv) if argv is not None else None
+        )
+        return _run(args)
+    except (
+            CloudSliceError,
+            FileNotFoundError,
+            FileExistsError,
+            ValueError,
+            zipfile.BadZipFile,
+            tarfile.TarError,
+    ) as exc:
+        print(f"[cloud-slice] ERROR: {exc}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":
