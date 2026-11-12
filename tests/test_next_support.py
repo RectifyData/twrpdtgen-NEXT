@@ -7,7 +7,8 @@ from pathlib import Path
 
 from twrpdtgen.next_support import (
     NextOptions, choose_recovery_layout, detect_android_api,
-    detect_kernel_image_name, find_recovery_fstab, format_twrp_fstab,
+    detect_brightness_policy, detect_kernel_image_name,
+    find_recovery_fstab, format_twrp_fstab,
     normalize_partition_names, parse_partition_size, resolve_skeleton,
     safe_component, valid_security_patch,
 )
@@ -82,6 +83,27 @@ class NextSupportTests(unittest.TestCase):
         self.assertEqual(choose_recovery_layout("auto", "boot.img", True), "boot")
         self.assertEqual(choose_recovery_layout("auto", "unknown.img", True), "unknown")
         self.assertEqual(choose_recovery_layout("vendor_boot", "boot.img", False), "vendor_boot")
+
+    def test_detect_brightness_policy_from_stock_init(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / "init.recovery.qcom.rc").write_text(
+                "on init\n"
+                "    write /sys/class/backlight/panel0-backlight/brightness 200\n"
+            )
+            self.assertEqual(
+                detect_brightness_policy(root),
+                ("/sys/class/backlight/panel0-backlight/brightness", 200),
+            )
+
+            (root / "init.second.rc").write_text(
+                "on init\n"
+                "    write /sys/class/leds/lcd-backlight/brightness 150\n"
+            )
+            self.assertEqual(
+                detect_brightness_policy(root),
+                (None, None),
+            )
 
     def test_detect_legacy_kernel_image_name(self):
         with tempfile.TemporaryDirectory() as temp:
