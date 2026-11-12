@@ -136,8 +136,9 @@ def fetch_and_generate_tree(
             else f"{Path(partition).name}.img"
         )
     )
-    if requested_image.exists() and overwrite:
-        requested_image.unlink()
+    if overwrite:
+        requested_image.unlink(missing_ok=True)
+        firmware.unlink(missing_ok=True)
 
     try:
         download_firmware(
