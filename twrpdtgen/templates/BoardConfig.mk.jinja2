@@ -190,7 +190,7 @@ BOARD_MKBOOTIMG_ARGS += --dtb_offset $(BOARD_DTB_OFFSET)
 {% endif %}
 {% endif %}
 
-BOARD_KERNEL_IMAGE_NAME := Image
+BOARD_KERNEL_IMAGE_NAME := {{ kernel_image_name }}
 {% if image_info.dt %}
 BOARD_KERNEL_SEPARATED_DT := true
 {% endif %}
