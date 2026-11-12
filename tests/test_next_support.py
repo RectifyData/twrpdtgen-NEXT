@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 
 from twrpdtgen.next_support import (
-    NextOptions, choose_recovery_layout, detect_android_api,
+    NextOptions, choose_recovery_layout, detect_android_api, find_recovery_fstab,
     normalize_partition_names, parse_partition_size, resolve_skeleton,
     safe_component, valid_security_patch,
 )
@@ -24,6 +24,18 @@ class NextSupportTests(unittest.TestCase):
             prop = Path(temp) / "prop.default"
             prop.write_text("ro.build.version.sdk=35\n")
             self.assertEqual(detect_android_api(Path(temp)), 35)
+
+    def test_first_stage_fstab(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / "first_stage_ramdisk").mkdir()
+            candidate = root / "first_stage_ramdisk/fstab.qcom"
+            candidate.write_text("# stock fstab\n")
+            self.assertEqual(find_recovery_fstab(root), candidate)
+            (root / "etc").mkdir()
+            preferred = root / "etc/recovery.fstab"
+            preferred.write_text("# recovery fstab\n")
+            self.assertEqual(find_recovery_fstab(root), preferred)
 
     def test_partition_geometry(self):
         self.assertEqual(parse_partition_size("0x4000000"), 67108864)
@@ -54,6 +66,7 @@ class NextSupportTests(unittest.TestCase):
     def test_security_patch(self):
         self.assertEqual(valid_security_patch("2026-08-05"), "2026-08-05")
         self.assertIsNone(valid_security_patch("2099-12-31 unknown"))
+        self.assertIsNone(valid_security_patch("2026-99-77"))
 
 
 if __name__ == "__main__":

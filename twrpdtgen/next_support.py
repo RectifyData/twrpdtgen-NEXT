@@ -9,6 +9,7 @@ Unknown firmware values remain unknown; never synthesize partition geometry,
 disable AVB or spoof security patch metadata.
 """
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 import re
 from typing import Iterable, Optional
@@ -20,6 +21,7 @@ _PROPERTY_PATHS = (
     "default.prop", "prop.default", "system/build.prop",
     "vendor/build.prop", "system/etc/build.prop", "vendor/etc/build.prop",
     "first_stage_ramdisk/prop.default", "system/etc/prop.default",
+    "system/system/build.prop", "vendor/default.prop",
 )
 _NAME = re.compile(r"[a-zA-Z0-9_][a-zA-Z0-9_.-]*\Z")
 _PART = re.compile(r"[a-zA-Z0-9_]+\Z")
@@ -89,6 +91,28 @@ def detect_android_api(ramdisk: Path) -> Optional[int]:
     return None
 
 
+def find_recovery_fstab(ramdisk: Path) -> Optional[Path]:
+    """Prefer stock recovery fstab, then common fs_mgr/fstab locations.
+
+    First-stage fstabs are found on modern GKI-based firmware; they still
+    need review for TWRP mount flags and decryption configuration.
+    """
+    root = Path(ramdisk)
+    preferred = ("etc/recovery.fstab", "system/etc/recovery.fstab",
+                 "vendor/etc/recovery.fstab", "recovery.fstab",
+                 "first_stage_ramdisk/recovery.fstab")
+    for relative in preferred:
+        candidate = root / relative
+        if candidate.is_file():
+            return candidate
+    for directory in ("first_stage_ramdisk", "vendor/etc", "odm/etc",
+                      "system/etc", "etc", "."):
+        for candidate in sorted((root / directory).glob("fstab.*")):
+            if candidate.is_file():
+                return candidate
+    return None
+
+
 def resolve_skeleton(requested: str, api: Optional[int]) -> str:
     """Choose a product family, not a promise of bootable recovery."""
     if requested != "auto":
@@ -130,4 +154,10 @@ def normalize_partition_names(values: Iterable[str]):
 
 def valid_security_patch(value):
     """Use a real vendor SPL only if it has an unambiguous ISO date shape."""
-    return value if isinstance(value, str) and _DATE.fullmatch(value) else None
+    if not isinstance(value, str) or not _DATE.fullmatch(value):
+        return None
+    try:
+        datetime.strptime(value, "%Y-%m-%d")
+    except ValueError:
+        return None
+    return value

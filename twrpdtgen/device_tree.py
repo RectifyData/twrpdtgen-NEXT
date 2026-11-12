@@ -19,7 +19,7 @@ from twrpdtgen import __version__ as version
 from twrpdtgen.templates import render_template
 from typing import List
 from twrpdtgen.next_support import (NextOptions, choose_recovery_layout,
-    detect_android_api, normalize_partition_names, resolve_skeleton,
+    detect_android_api, find_recovery_fstab, normalize_partition_names, resolve_skeleton,
     safe_component, valid_security_patch)
 
 BUILDPROP_LOCATIONS = [Path() / "default.prop",
@@ -28,10 +28,9 @@ BUILDPROP_LOCATIONS += [Path() / dir / "build.prop"
                         for dir in ["system", "vendor"]]
 BUILDPROP_LOCATIONS += [Path() / dir / "etc" / "build.prop"
                         for dir in ["system", "vendor"]]
-
-FSTAB_LOCATIONS = [Path() / "etc" / "recovery.fstab"]
-FSTAB_LOCATIONS += [Path() / dir / "etc" / "recovery.fstab"
-                    for dir in ["system", "vendor"]]
+BUILDPROP_LOCATIONS += [Path("first_stage_ramdisk/prop.default"),
+                        Path("system/system/build.prop"),
+                        Path("vendor/default.prop")]
 
 INIT_RC_LOCATIONS = [Path()]
 INIT_RC_LOCATIONS += [Path() / dir / "etc" / "init"
@@ -84,18 +83,12 @@ class DeviceTree:
 		self.security_patch = valid_security_patch(
 			getattr(self.device_info, "vendor_build_security_patch", None))
 
-		# Generate fstab
-		fstab = None
-		for fstab_location in [self.image_info.ramdisk / location for location in FSTAB_LOCATIONS]:
-			if not fstab_location.is_file():
-				continue
-
-			LOGD(f"Generating fstab using {fstab} as reference...")
-			fstab = Fstab(fstab_location)
-			break
-
-		if fstab is None:
-			raise AssertionError("fstab not found")
+		# Find both classic recovery and newer first-stage/vendor fstabs.
+		fstab_location = find_recovery_fstab(self.image_info.ramdisk)
+		if fstab_location is None:
+			raise ValueError("No stock fstab found in ramdisk")
+		LOGD(f"Generating fstab using {fstab_location} as reference...")
+		fstab = Fstab(fstab_location)
 
 		self.fstab = fstab
 		self.dynamic_partition_names = normalize_partition_names(
@@ -115,7 +108,10 @@ class DeviceTree:
 			                  if init_rc.name.endswith(".rc") and init_rc.name != "init.rc"]
 
 	def dump_to_folder(self, output_path: Path, git: bool = False) -> Path:
-		device_tree_folder = Path(output_path) / self.device_info.manufacturer / self.device_info.codename
+		parent = Path(output_path) / self.device_info.manufacturer
+		if parent.is_symlink():
+			raise ValueError("Refusing to write under a symlinked manufacturer folder")
+		device_tree_folder = parent / self.device_info.codename
 		prebuilt_path = device_tree_folder / "prebuilt"
 		recovery_root_path = device_tree_folder / "recovery" / "root"
 
@@ -198,6 +194,7 @@ class DeviceTree:
 		                       image_info=self.image_info,
 		                       version=version,
 		                       skeleton=self.skeleton,
+		                       android_api=self.android_api,
 		                       product_prefix=self.product_prefix,
 		                       recovery_layout=self.recovery_layout,
 		                       dynamic_partition_names=self.dynamic_partition_names,
