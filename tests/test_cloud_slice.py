@@ -6,6 +6,7 @@ import tempfile
 import unittest
 import zipfile
 
+import lz4.block
 import lz4.frame
 
 from twrpdtgen.cloud_slice import (
@@ -15,6 +16,18 @@ from twrpdtgen.cloud_slice import (
     select_samloader_asset,
     slice_firmware,
 )
+
+
+def make_legacy_lz4(payload):
+    block_size = 8 * 1024 * 1024
+    output = io.BytesIO()
+    output.write(b"\x02\x21\x4c\x18")
+    for offset in range(0, len(payload), block_size):
+        block = payload[offset:offset + block_size]
+        compressed = lz4.block.compress(block, store_size=False)
+        output.write(len(compressed).to_bytes(4, "little"))
+        output.write(compressed)
+    return output.getvalue()
 
 
 def make_tar(entries):
@@ -65,6 +78,29 @@ class CloudSliceTests(unittest.TestCase):
             self.assertEqual(result.compression, "lz4")
             self.assertEqual(result.output_size, len(raw))
             self.assertEqual(len(result.sha256), 64)
+
+    def test_streams_samsung_legacy_lz4_payload(self):
+        raw = (b"ANDROID!" + b"legacy-recovery" * 65536)
+        ap = make_tar([
+            ("recovery.img.lz4", make_legacy_lz4(raw)),
+        ])
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            firmware = root / "firmware.zip"
+            output = root / "recovery.img"
+            make_firmware(
+                firmware,
+                [("AP_TEST.tar.md5", ap)],
+            )
+            result = slice_firmware(
+                firmware,
+                "recovery",
+                output=output,
+                package="AP",
+            )
+            self.assertEqual(output.read_bytes(), raw)
+            self.assertEqual(result.compression, "lz4_legacy")
+            self.assertEqual(result.payload_member, "recovery.img.lz4")
 
     def test_raw_payload_is_copied_without_decompression(self):
         recovery = b"ANDROID!" + b"recovery" * 512
