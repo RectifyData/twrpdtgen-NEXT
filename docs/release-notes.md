@@ -1,41 +1,40 @@
-# twrpdtgen-NEXT 3.1.0a12 — legacy image fidelity and fstab safety
+# twrpdtgen-NEXT 3.1.0a13 — generated-tree build audit fixes
 
-This prerelease follows inspection of a clean 3.1.0a11 Galaxy A20s
-SM-A207F tree. The a11 packaging fixes are now confirmed in a real artifact:
-the downloadable tree fell to about 10.9 MB, excluded audit-only
-`recovery/stock-root/`, included `recovery.stock.fstab` and
-`proprietary-files.txt`, used a minimal recovery overlay, and stamped the
-generated README with the exact NEXT version.
+This prerelease follows a second full static audit of the clean ~10.9 MB
+Galaxy A20s SM-A207F generated tree.
 
-That inspection exposed two remaining generic reconstruction problems:
+Two additional generic defects were confirmed:
 
-- The extracted A20s prebuilt kernel is actually an `Image.gz-dtb`: a gzip
-  kernel stream followed by an appended flattened device tree, while the
-  generated BoardConfig still declared `BOARD_KERNEL_IMAGE_NAME := Image`.
-- The normalized TWRP fstab discarded the stock userdata
-  `length=-16384` reservation and kept a system-as-root source mount at
-  `/`, losing recovery-relevant wipe geometry and the conventional
-  `/system_root` TWRP mount.
+- The generated `recovery/root/` overlay existed on disk but the product
+  makefile never copied it into the recovery ramdisk. Device-specific init,
+  firmware, modules, or VINTF files selected by minimal mode could therefore be
+  silently absent from the built recovery.
+- The stock A20s recovery explicitly writes
+  `/sys/class/backlight/panel0-backlight/brightness`, but NEXT discarded that
+  directly observable device policy instead of wiring TWRP's brightness
+  control to the same node.
 
-Fixes in 3.1.0a12:
+Fixes in 3.1.0a13:
 
-- Detects legacy prebuilt kernel format from content. Gzip kernels emit
-  `Image.gz`; gzip kernels with an appended FDT emit `Image.gz-dtb`.
-- Emits the detected kernel artifact through `BOARD_KERNEL_IMAGE_NAME`.
-- Uses a NEXT-owned conservative TWRP fstab renderer that preserves
-  `length=`, `logical`, `slotselect`, and `wait` flags.
-- Maps stock `/` to `/system_root` when the parsed device is
-  system-as-root, avoiding an empty `display=` entry.
-- Keeps the exact stock fstab beside the normalized file for full audit.
-- Adds notebook fields for verified boot, recovery, super, and dynamic-group
-  partition sizes. They remain blank by default and are never guessed.
-- Adds regression coverage for raw/gzip/gzip+DTB kernel identification and
-  userdata footer preservation.
+- Every generated product makefile now copies `recovery/root/` into
+  `recovery/root` using `find-copy-subdir-files`, matching established TWRP
+  device-tree practice.
+- Brightness path/default are inferred only when stock init contains an
+  unambiguous explicit `write .../brightness <number>`. Ambiguous multiple
+  brightness nodes are deliberately left unset.
+- TWRP is allowed to discover `max_brightness` at runtime; NEXT does not guess
+  a maximum value.
+- Generated READMEs now call out Samsung dedicated-recovery image
+  trailer/Odin/verified-boot packaging as a device-specific verification item.
+- Regression tests cover both recovery-overlay inclusion and stock-derived
+  brightness policy.
 
-Target-specific recovery bring-up files that are not present in the selected
-stock recovery ramdisk, such as additional USB init, ueventd permissions,
-touch firmware, brightness policy, and variant-specific TWRP flags, remain
-explicit device-validation work rather than unsafe generic guesses.
+The A20s audit still leaves target-specific bring-up work outside safe generic
+generation: TWRP backup/flash fstab policy, external-SD/USB-OTG storage flags,
+Qualcomm RTC/platform extras, cutout offsets, Samsung image trailer/Odin
+packaging, and any touch firmware or custom USB/ueventd files absent from the
+selected stock recovery. Those must be validated for the exact variant rather
+than copied blindly from another A20s tree.
 
-**Experimental source generator prerelease.** A generated tree is still not
-proof of a bootable or safe-to-flash recovery.
+**Experimental source generator prerelease.** A generated tree remains a
+build/bring-up candidate, not evidence that a recovery image is safe to flash.
