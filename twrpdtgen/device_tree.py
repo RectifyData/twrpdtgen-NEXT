@@ -375,6 +375,10 @@ class DeviceTree:
         LOGD("Writing makefiles/blueprints")
         self._render_template(
             device_tree_folder,
+            "gitignore",
+            out_file=".gitignore")
+        self._render_template(
+            device_tree_folder,
             "Android.bp",
             comment_prefix="//")
         self._render_template(
