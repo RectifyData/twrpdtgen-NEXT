@@ -1,14 +1,22 @@
-# twrpdtgen-NEXT 3.1.0a22 — mobile/browser GUI reliability update
+# twrpdtgen-NEXT 3.1.0a23 — synchronized CLI and both GUIs
 
-Source-only prerelease with the desktop Tk GUI, mobile localhost GUI,
-and fully independent CLI.
+Source-only prerelease. One argparse option definition and a shared generator
+execution backend now power the CLI, desktop GUI and Android/Termux browser GUI.
 
-- Termux launcher opens the browser GUI before invoking Linux-only tooling
-  checks or testing for an attached TTY.
-- Optional .img.lz4 companion images are decoded in isolated temporary
-  staging folders using the same validated decoder as primary images.
-- Unsupported companion formats and conflicting image roles are rejected.
-- New regression test verifies decoded companion image handoff.
-- Prior mobile file picker/upload/ZIP download and desktop GUI continue.
+- Derives CLI argument names, choices, defaults, types, and descriptions from
+  the single `twrpdtgen.main.build_parser()` function.
+- Desktop GUI renders additional CLI flags automatically and populates its
+  existing recovery-layout/profile dropdowns from the parser.
+- Android/browser GUI renders the same controls from local `GET /api/options`
+  and keeps its existing mobile-friendly layout.
+- Both GUIs parse their settings with the actual CLI parser, then call
+  `execute_cli_job` (the same backend used by the command-line program).
+- Keeps ZIP outputs uniquely named, supports init_boot and companion images,
+  and preserves tree + ZIP and component-extraction modes.
+- Adds tests to simulate future CLI arguments, validate pass-through and
+  web schema consistency, and reject unsupported option shapes.
 
-A generated recovery source tree is not confirmed flash-safe or bootable.
+New supported CLI arguments appear automatically in both GUIs. Complex
+future arguments require an adapter; CI fails loudly instead of omitting them.
+These programs generate candidate sources and do not prove recovery bootability,
+AVB correctness, encryption, partition capacity, or flash safety.

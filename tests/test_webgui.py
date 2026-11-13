@@ -40,6 +40,8 @@ class LocalWebGUITests(unittest.TestCase):
             page = res.read().decode()
             self.assertIn("viewport", page)
             self.assertIn("Recovery Tree Studio", page)
+            self.assertIn('id="cliSyncedOptions"', page)
+            self.assertIn('fetch("/api/options"', page)
             self.assertIn(self.state.token, page)
             self.assertEqual(res.headers["X-Frame-Options"], "DENY")
             self.assertEqual(res.headers["Cache-Control"], "no-store")
@@ -48,6 +50,37 @@ class LocalWebGUITests(unittest.TestCase):
         with self.assertRaises(HTTPError) as exc:
             self.request("/", headers={"Host": "some-other-site.test"})
         self.assertEqual(exc.exception.code, 403)
+
+    def test_http_schema_tracks_new_cli_options(self):
+        from twrpdtgen.main import build_parser
+        with self.request("/api/options") as res:
+            schema = json.load(res)
+        self.assertEqual(res.status, 200)
+        self.assertIn("init_boot", schema["choices"]["recovery_layout"]["choices"])
+        self.assertIn("git", [item["name"] for item in schema["extras"]])
+
+        modified = build_parser()
+        modified.add_argument("--future-mode", choices=("alpha", "beta"),
+                              default="alpha")
+        with patch("twrpdtgen.main.build_parser", return_value=modified):
+            with self.request("/api/options") as res:
+                schema = json.load(res)
+        self.assertIn("future_mode", [item["name"]
+                                     for item in schema["extras"]])
+
+    def test_invalid_cli_extra_cannot_reach_runner(self):
+        image = self.state.workspace / "init_boot.img"
+        image.write_bytes(b"stock")
+        payload = json.dumps({
+            "source": str(image),
+            "output": str(self.state.workspace / "output"),
+            "cli_options": {"unexpected_argument": "value"},
+        }).encode()
+        headers = {"X-CSRF-Token": self.state.token,
+                   "Content-Type": "application/json"}
+        with self.assertRaises(HTTPError) as exc:
+            self.request("/api/start", "POST", payload, headers)
+        self.assertEqual(exc.exception.code, 400)
 
     def test_post_and_upload_are_csrf_protected(self):
         values = json.dumps({

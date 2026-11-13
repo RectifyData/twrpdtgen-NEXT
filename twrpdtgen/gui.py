@@ -40,9 +40,17 @@ class GUIJob:
     dynamic_group_size: Optional[int] = None
     include_stock_root: bool = False
     overwrite: bool = False
+    cli_options: tuple = ()
 
     def validate(self):
         from twrpdtgen.next_support import NextOptions
+        from twrpdtgen.option_sync import validate_extra_values
+
+        extras = validate_extra_values(dict(self.cli_options))
+        if self.mode == "extract" and (
+                extras.get("git") or extras.get("extract_to")):
+            raise ValueError(
+                "Git commit and extra component export require tree mode")
 
         if self.mode not in ("tree", "extract"):
             raise ValueError("Choose Generate tree or Extract components")
@@ -91,6 +99,9 @@ def _optional_image(value: str) -> Optional[Path]:
 def parse_job(values: dict) -> GUIJob:
     """Convert form text to a validated job; shared by GUI and tests."""
     from twrpdtgen.next_support import parse_partition_size
+    from twrpdtgen.option_sync import validate_extra_values
+
+    extras = validate_extra_values(values.get("cli_options", {}))
 
     def size(name):
         raw = values.get(name, "").strip()
@@ -120,6 +131,7 @@ def parse_job(values: dict) -> GUIJob:
         dynamic_group_size=size("dynamic_group_size"),
         include_stock_root=bool(values.get("include_stock_root")),
         overwrite=bool(values.get("overwrite")),
+        cli_options=tuple(extras.items()),
     )
     job.validate()
     return job
@@ -132,11 +144,15 @@ def _selection(source: Path):
 
 
 def run_job(job: GUIJob, report: Callable[[str], None] = print) -> GUIResult:
-    """Execute without tkinter; never flash or modify an Android device."""
+    """Run the shared CLI execution engine with GUI input preparation.
+
+    All CLI options are parsed by main.build_parser, and passed to the same
+    execute_cli_job backend used by the actual command-line application.
+    """
     from twrpdtgen.auto_tree import discover_images
-    from twrpdtgen.boot_image import ModernImageManager
     from twrpdtgen.easy import _unique_path, _explicit_role, _extract_payload_stream
-    from twrpdtgen.next_support import NextOptions
+    from twrpdtgen.main import build_parser, execute_cli_job
+    from twrpdtgen.option_sync import extra_cli_argv
     from twrpdtgen.tree_archive import archive_tree
 
     job.validate()
@@ -180,60 +196,68 @@ def run_job(job: GUIJob, report: Callable[[str], None] = print) -> GUIResult:
             if path:
                 report("Companion {}: {}".format(kind, path.name))
 
+        # This argument vector is the same kind users can pass in terminal.
+        # No GUI-only reimplementation of the generator's option handling.
+        argv = [
+            str(primary), "--output", str(job.output),
+            "--skeleton", job.skeleton,
+            "--recovery-layout", job.recovery_layout,
+            "--recovery-root-mode", job.recovery_root_mode,
+        ]
+        for kind, flag in (
+                ("boot", "--boot-image"),
+                ("vendor_boot", "--vendor-boot"),
+                ("init_boot", "--init-boot")):
+            if companions[kind] is not None:
+                argv.extend([flag, str(companions[kind])])
+        if job.recovery_fragment:
+            argv.extend(["--recovery-fragment", job.recovery_fragment])
+        for kind, flag in (
+                ("boot_size", "--boot-size"),
+                ("recovery_size", "--recovery-size"),
+                ("super_size", "--super-size"),
+                ("dynamic_group_size", "--dynamic-group-size")):
+            value = getattr(job, kind)
+            if value is not None:
+                argv.extend([flag, str(value)])
+        if job.overwrite:
+            argv.append("--overwrite")
         if job.mode == "extract":
-            target = _unique_path(job.output / "extracted-images")
-            report("Extracting modern image components...")
-            manager = ModernImageManager(
-                primary,
-                boot_image=companions["boot"],
-                vendor_boot=companions["vendor_boot"],
-                init_boot=companions["init_boot"],
-            )
-            try:
-                manager.unpack()
-                extracted = manager.export(target)
-            finally:
-                manager.cleanup()
-            report("Components saved to {}".format(extracted))
-            return GUIResult(extracted=extracted)
-
-        from twrpdtgen.device_tree import DeviceTree
-
-        options = NextOptions(
-            skeleton=job.skeleton,
-            recovery_layout=job.recovery_layout,
-            recovery_root_mode=job.recovery_root_mode,
-            boot_size=job.boot_size,
-            recovery_size=job.recovery_size,
-            super_size=job.super_size,
-            dynamic_group_size=job.dynamic_group_size,
-            overwrite=job.overwrite,
-        )
-        report("Parsing stock recovery and building candidate source tree...")
-        generator = DeviceTree(
-            image=primary,
-            options=options,
-            boot_image=companions["boot"],
-            vendor_boot=companions["vendor_boot"],
-            init_boot=companions["init_boot"],
-            recovery_fragment=job.recovery_fragment,
-        )
+            destination = _unique_path(job.output / "extracted-images")
+            argv.extend(["--extract-only", str(destination)])
+        argv.extend(extra_cli_argv(dict(job.cli_options)))
+        parser = build_parser()
         try:
-            tree = generator.dump_to_folder(job.output, git=False)
-        finally:
-            generator.cleanup()
+            args = parser.parse_args(argv)
+        except SystemExit as exc:
+            raise ValueError("Invalid generator settings") from exc
+
+        job.output.mkdir(parents=True, exist_ok=True)
+        report(
+            "Extracting modern image components..." if job.mode == "extract"
+            else "Parsing recovery and generating candidate TWRP tree...")
+        result = execute_cli_job(args, direct=True)
+        if job.mode == "extract":
+            if result.extracted is None:
+                raise RuntimeError("CLI backend returned no extracted components")
+            report("Components saved to {}".format(result.extracted))
+            return GUIResult(extracted=result.extracted)
+
+        tree = result.tree
+        if tree is None:
+            raise RuntimeError("CLI backend returned no generated device tree")
         report("Creating portable ZIP (ZIP64 and symlinks supported)...")
         archive = job.archive or job.output / "twrp-device-tree.zip"
         if archive.suffix.lower() != ".zip":
             archive = archive.with_suffix(".zip")
-        # Never erase an existing ZIP even if replacing a tree was selected.
+        # Never silently erase an existing ZIP, even when replacing a tree.
         archive = _unique_path(archive)
         bundle = archive_tree(
             tree, archive, include_stock_root=job.include_stock_root)
         report("Tree: {}".format(tree))
         report("ZIP: {}".format(bundle))
         report("Generated source is NOT verified bootable or safe to flash.")
-        return GUIResult(tree=tree, archive=bundle)
+        return GUIResult(tree=tree, archive=bundle, extracted=result.extracted)
 
 
 def can_launch_gui() -> bool:
@@ -289,6 +313,9 @@ class NextWindow:
         style.configure("Action.TButton", padding=(18, 9))
         style.configure("Section.TLabelframe", padding=(12, 8))
 
+        from twrpdtgen.option_sync import interface_schema
+        self.cli_schema = interface_schema()
+        self.cli_extra_fields = {}
         self.fields = {}
         self.flags = {
             "overwrite": tk.BooleanVar(value=False),
@@ -303,9 +330,9 @@ class NextWindow:
             "boot_image": "",
             "vendor_boot": "",
             "init_boot": "",
-            "skeleton": "auto",
-            "recovery_layout": "auto",
-            "recovery_root_mode": "auto",
+            "skeleton": self.cli_schema["choices"]["skeleton"]["default"],
+            "recovery_layout": self.cli_schema["choices"]["recovery_layout"]["default"],
+            "recovery_root_mode": self.cli_schema["choices"]["recovery_root_mode"]["default"],
             "recovery_fragment": "",
             "boot_size": "",
             "recovery_size": "",
@@ -384,15 +411,16 @@ class NextWindow:
 
         advanced = ttk.LabelFrame(body, text="3  ·  Generator settings", style="Section.TLabelframe")
         advanced.pack(fill="x", padx=4, pady=8)
-        for row, (key, label, choices) in enumerate((
-                ("skeleton", "TWRP profile", ("auto", "omni", "twrp-12.1", "twrp-14.1")),
-                ("recovery_layout", "Recovery source", ("auto", "dedicated", "boot", "vendor_boot", "init_boot")),
-                ("recovery_root_mode", "Ramdisk overlay", ("auto", "minimal", "full")))):
+        for row, (key, label) in enumerate((
+                ("skeleton", "TWRP profile"),
+                ("recovery_layout", "Recovery source"),
+                ("recovery_root_mode", "Ramdisk overlay"))):
             ttk.Label(advanced, text=label, width=23).grid(
                 row=row, column=0, sticky="w", pady=4)
             ttk.Combobox(
                 advanced, state="readonly", width=26,
-                textvariable=self.fields[key], values=choices
+                textvariable=self.fields[key],
+                values=self.cli_schema["choices"][key]["choices"]
             ).grid(row=row, column=1, sticky="w", pady=4)
         ttk.Label(advanced, text="Vendor recovery fragment").grid(
             row=3, column=0, sticky="w")
@@ -418,6 +446,38 @@ class NextWindow:
         ttk.Label(
             geometry, text="Leave blank to use source-image length estimates; these do NOT prove physical capacity.",
             wraplength=760).grid(row=2, column=0, columnspan=4, sticky="w")
+
+        synced = ttk.LabelFrame(
+            body, text="CLI options (automatically synchronized)",
+            style="Section.TLabelframe")
+        synced.pack(fill="x", padx=4, pady=8)
+        if not self.cli_schema["extras"]:
+            ttk.Label(synced, text="All current CLI settings are covered above.").pack(
+                anchor="w")
+        for opt in self.cli_schema["extras"]:
+            name = opt["name"]
+            if opt["kind"] == "boolean":
+                value = tk.BooleanVar(value=opt["default"])
+                ttk.Checkbutton(
+                    synced, text=opt["flag"] + "  —  " + opt["label"],
+                    variable=value).pack(fill="x", anchor="w", pady=3)
+            else:
+                row = ttk.Frame(synced)
+                row.pack(fill="x", pady=3)
+                ttk.Label(
+                    row, text=opt["flag"], width=23).pack(side="left")
+                value = tk.StringVar(value=opt["default"])
+                if opt["kind"] == "choice":
+                    widget = ttk.Combobox(
+                        row, textvariable=value, state="readonly",
+                        values=opt["choices"])
+                else:
+                    widget = ttk.Entry(row, textvariable=value)
+                widget.pack(side="left", fill="x", expand=True)
+                ttk.Label(
+                    synced, text=opt["label"], wraplength=650
+                ).pack(fill="x", anchor="w")
+            self.cli_extra_fields[name] = value
 
         checks = ttk.Frame(body)
         checks.pack(fill="x", padx=8, pady=(4, 8))
@@ -531,6 +591,10 @@ class NextWindow:
     def _form(self):
         result = {name: variable.get() for name, variable in self.fields.items()}
         result.update({name: bool(variable.get()) for name, variable in self.flags.items()})
+        result["cli_options"] = {
+            name: variable.get()
+            for name, variable in self.cli_extra_fields.items()
+        }
         return result
 
     def _start(self):

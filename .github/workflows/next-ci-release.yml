@@ -36,6 +36,14 @@ jobs:
           PYTHONPATH=. python -m twrpdtgen.gui --help >/dev/null
           PYTHONPATH=. python -m twrpdtgen.webgui --help >/dev/null
           PYTHONPATH=. python -m twrpdtgen --help >/dev/null
+      - name: Verify CLI and GUI shared option schema
+        run: |
+          PYTHONPATH=. python - <<'PY'
+          from twrpdtgen.option_sync import interface_schema
+          schema = interface_schema()
+          print("Derived GUI controls:", [item["flag"] for item in schema["extras"]])
+          assert "init_boot" in schema["choices"]["recovery_layout"]["choices"]
+          PY
       - name: Compile Python
         run: python -m compileall -q twrpdtgen tests
       - name: Run unit regression checks

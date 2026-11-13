@@ -24,6 +24,7 @@ import zipfile
 
 from twrpdtgen import __version__
 from twrpdtgen.gui import parse_job, run_job
+from twrpdtgen.option_sync import interface_schema
 
 
 MAX_UPLOAD = 32 * 1024 ** 3
@@ -121,6 +122,8 @@ button:disabled{opacity:.5;cursor:wait}
 <div><label for="dynamic_group_size">Dynamic group</label><input id="dynamic_group_size" type="text"></div>
 </div>
 <p class="note">Blank sizes are provisional source-image estimates. Verify physical partitions before flashing.</p>
+<h2 style="margin-top:18px">Additional CLI options (automatically synchronized)</h2>
+<div id="cliSyncedOptions" class="grid" aria-live="polite"></div>
 </div>
 <label class="check"><input type="checkbox" id="include_stock_root"> Include full stock ramdisk in downloaded ZIP</label>
 <label class="check"><input type="checkbox" id="overwrite"> Replace an existing tree (asks for confirmation)</label>
@@ -143,6 +146,55 @@ const csrf=__TOKEN__;
 const el=id=>document.getElementById(id);
 const fields=["source","output","archive","boot_image","vendor_boot","init_boot","skeleton","recovery_layout","recovery_root_mode","recovery_fragment","boot_size","recovery_size","super_size","dynamic_group_size"];
 let polling=null,active=false;
+let syncedExtras=[];
+async function loadSharedOptions(){
+ const response=await fetch("/api/options",{cache:"no-store"});
+ if(!response.ok)throw new Error("Could not retrieve generator settings");
+ const schema=await response.json();
+ for(const [name,spec] of Object.entries(schema.choices||{})){
+  const select=el(name);
+  if(!select)throw new Error("Missing generator setting: "+name);
+  const previous=select.value;
+  select.replaceChildren();
+  for(const choice of spec.choices){
+   const option=document.createElement("option");
+   option.value=choice;option.textContent=choice;
+   select.append(option);
+  }
+  select.value=spec.choices.includes(previous)?previous:spec.default;
+ }
+ const target=el("cliSyncedOptions");
+ target.replaceChildren();
+ syncedExtras=schema.extras||[];
+ for(const opt of syncedExtras){
+  const holder=document.createElement("div");
+  const label=document.createElement("label");
+  label.htmlFor="cli_"+opt.name;
+  label.textContent=opt.flag+" — "+opt.label;
+  holder.append(label);
+  let control;
+  if(opt.kind==="boolean"){
+   control=document.createElement("input");
+   control.type="checkbox";
+   control.checked=Boolean(opt.default);
+  }else if(opt.kind==="choice"){
+   control=document.createElement("select");
+   for(const value of opt.choices){
+    const item=document.createElement("option");
+    item.value=value;item.textContent=value;control.append(item);
+   }
+   control.value=opt.default;
+  }else{
+   control=document.createElement("input");
+   control.type="text";
+   control.value=opt.default||"";
+  }
+  control.id="cli_"+opt.name;
+  holder.append(control);
+  target.append(holder);
+ }
+}
+const optionsReady=loadSharedOptions();
 function tools(open){el("toolsPane").style.display=open?"block":"none";el("toolsButton").setAttribute("aria-expanded",String(open))}
 el("toolsButton").onclick=()=>tools(el("toolsPane").style.display!=="block");
 el("toggleAdvanced").onclick=()=>{let a=el("advanced");a.style.display=a.style.display==="block"?"none":"block";tools(false)};
@@ -191,7 +243,12 @@ if(active)return;
 if(el("overwrite").checked && !confirm("Replace the existing generated device tree if it exists?"))return;
 working(true);el("download").style.display="none";
 try{
+ await optionsReady;
  const data=Object.fromEntries(fields.map(name=>[name,el(name).value]));
+ data.cli_options=Object.fromEntries(syncedExtras.map(
+   spec=>[spec.name,spec.kind==="boolean"
+     ?el("cli_"+spec.name).checked
+     :el("cli_"+spec.name).value]));
  data.mode=mode;
  data.overwrite=el("overwrite").checked;
  data.include_stock_root=el("include_stock_root").checked;
@@ -343,6 +400,8 @@ class WebHandler(BaseHTTPRequestHandler):
             self.wfile.write(raw)
         elif parsed.path == "/api/status":
             self._json(200, self.server.state.snapshot())
+        elif parsed.path == "/api/options":
+            self._json(200, interface_schema())
         elif parsed.path == "/api/download":
             args = parse_qs(parsed.query)
             key = args.get("key", [""])[0]

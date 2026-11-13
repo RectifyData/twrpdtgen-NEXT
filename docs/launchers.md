@@ -28,6 +28,20 @@ The server is private to this device, cannot be accessed remotely, and
 does not send firmware to any web provider. It is a Python/Termux tool, not
 a native Android APK. Installation of dependencies may vary by device.
 
+## One option schema for desktop, Android/browser GUI, and CLI
+
+All interfaces now use `twrpdtgen.main.build_parser()` for generator option
+definitions. New standard CLI flags automatically appear under
+**CLI options (automatically synchronized)** in both graphical interfaces,
+and changes to choice lists update both. The localhost browser retrieves the
+schema from `GET /api/options`.
+
+Both GUIs parse values with the shared argparse parser and call the same
+`execute_cli_job` implementation used by terminal invocation.
+If a future CLI argument has an unsupported structure, automated regression
+checks fail rather than silently dropping functionality. Extend the adapter
+for such actions before publishing.
+
 ## GUI and CLI entry points
 
 Windows GUI: `launcher.cmd` or `launcher.cmd --gui`.

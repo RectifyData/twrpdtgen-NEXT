@@ -6,6 +6,8 @@
 """Command-line interface for recovery device tree generation and extraction."""
 
 from argparse import ArgumentParser
+from dataclasses import dataclass
+from typing import Optional
 from pathlib import Path
 
 from twrpdtgen import __version__ as version, current_path
@@ -55,15 +57,13 @@ def _extract_only(args):
         print(
             "manifest.json records header geometry, "
             "vendor ramdisk fragments and compression.")
+        return destination
     finally:
         manager.cleanup()
 
 
-def main(*, cli_only=False):
-    print(
-        "TWRP device tree generator NEXT\n"
-        f"Version {version}\n")
-
+def build_parser():
+    """Single authoritative generator CLI schema used by all frontends."""
     parser = ArgumentParser(
         prog="python3 -m twrpdtgen")
     _add_image_arguments(parser)
@@ -159,31 +159,19 @@ def main(*, cli_only=False):
                         help="open graphical mode with optional IMAGE")
     parser.add_argument("--web", action="store_true",
                         help="open the mobile-friendly localhost browser GUI")
-    args = parser.parse_args()
+    return parser
 
-    if args.web:
-        from twrpdtgen.webgui import main as web_main
-        return web_main([])
-    if args.gui:
-        from twrpdtgen.gui import main as gui_main
-        return gui_main(
-            ["--source", str(args.image)] if args.image else [])
-    if args.image is None:
-        if cli_only or args.cli:
-            parser.print_help()
-            return 0
-        from twrpdtgen.gui import can_launch_gui, main as gui_main
-        if can_launch_gui():
-            return gui_main([])
-        # Termux has a full Android browser but typically not a Tk desktop.
-        import os
-        if (os.environ.get("TERMUX_VERSION")
-                or "com.termux" in os.environ.get("PREFIX", "")):
-            from twrpdtgen.webgui import main as web_main
-            return web_main([])
-        from twrpdtgen.easy import main as easy_main
-        return easy_main([])
 
+@dataclass(frozen=True)
+class CLIExecutionResult:
+    """Shared result for the CLI, desktop GUI and Android browser GUI."""
+    tree: Optional[Path] = None
+    archive: Optional[Path] = None
+    extracted: Optional[Path] = None
+
+
+def execute_cli_job(args, *, direct=False):
+    """Run one CLI job. direct=True skips Easy Mode re-discovery for staged GUI inputs."""
     # The legacy unpacker dependencies are required only for actual CLI
     # generation, not to display --help or bring up a GUI.
     from sebaubuntu_libs.liblogging import setup_logging
@@ -195,7 +183,8 @@ def main(*, cli_only=False):
         or args.image.name.lower() in SUPPORTED_IMAGE_NAMES
     )
     if (
-            easy_input
+            not direct
+            and easy_input
             and not args.extract_only
             and not args.extract_to
             and args.boot_image is None
@@ -218,18 +207,18 @@ def main(*, cli_only=False):
                 overwrite=args.overwrite,
             )
         except Exception as exc:
-            parser.error(str(exc))
+            raise ValueError(str(exc)) from exc
         print(f"\nGenerated candidate tree at {folder}")
         print(f"Portable ZIP: {bundle}")
         print(
             "Build and validate the generated tree for the target device "
             "before flashing."
         )
-        return
+        return CLIExecutionResult(tree=folder, archive=bundle)
 
     if args.extract_only:
-        _extract_only(args)
-        return
+        extracted = _extract_only(args)
+        return CLIExecutionResult(extracted=extracted)
 
     options = NextOptions(
         skeleton=args.skeleton,
@@ -273,6 +262,45 @@ def main(*, cli_only=False):
         "Verify BoardConfig, fstab, AVB, encryption, "
         "ramdisk selection and partition layout before "
         "building or flashing.")
+
+    return CLIExecutionResult(tree=folder, extracted=extracted)
+
+
+
+def main(*, cli_only=False):
+    print(
+        "TWRP device tree generator NEXT\n"
+        f"Version {version}\n")
+
+    parser = build_parser()
+    args = parser.parse_args()
+
+    if args.web:
+        from twrpdtgen.webgui import main as web_main
+        return web_main([])
+    if args.gui:
+        from twrpdtgen.gui import main as gui_main
+        return gui_main(
+            ["--source", str(args.image)] if args.image else [])
+    if args.image is None:
+        if cli_only or args.cli:
+            parser.print_help()
+            return 0
+        from twrpdtgen.gui import can_launch_gui, main as gui_main
+        if can_launch_gui():
+            return gui_main([])
+        # Termux has a full Android browser but typically not a Tk desktop.
+        import os
+        if (os.environ.get("TERMUX_VERSION")
+                or "com.termux" in os.environ.get("PREFIX", "")):
+            from twrpdtgen.webgui import main as web_main
+            return web_main([])
+        from twrpdtgen.easy import main as easy_main
+        return easy_main([])
+
+    return execute_cli_job(args)
+
+
 
 
 def main_cli():

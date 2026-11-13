@@ -42,6 +42,24 @@ python -m twrpdtgen.webgui --port 8765
 # Linux:   ./launcher.sh --web
 ```
 
+## Automatic CLI ↔ GUI synchronization
+
+The desktop GUI, Android/Termux localhost browser GUI, and CLI share
+**one authoritative argparse option schema and one execution backend**.
+When the CLI adds a supported new generator option, both GUIs automatically
+render the control (checkbox, choice list, path, or text), and pass the value
+through the real CLI parser and generator. Choice lists and defaults also
+come from the CLI rather than separate hardcoded GUI lists.
+
+The browser GUI retrieves live metadata from local `GET /api/options`.
+The desktop GUI builds its synced settings panel on startup. Existing CLI
+features such as `--git`, `--debug`, and `--extract-to` appear in both.
+
+Regression tests enforce CLI-option coverage and simulate future added flags.
+Unsupported complex argparse shapes fail CI instead of silently disappearing:
+their adapter must be updated before release. Source trees remain unverified
+for bootability and physical flash partition capacity.
+
 ## Desktop GUI and independent CLI
 
 Windows and Linux now have a full Tk GUI with file/folder and companion-image
