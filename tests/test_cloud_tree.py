@@ -24,6 +24,10 @@ class CloudTreeTests(unittest.TestCase):
                 "TARGET_BOARD_PLATFORM := msm8953\n",
                 encoding="utf-8",
             )
+            (tree / "AndroidProducts.mk").write_text(
+                "PRODUCT_MAKEFILES := test\n",
+                encoding="utf-8",
+            )
             archive = _archive_tree(tree, root / "result.zip")
             self.assertTrue(archive.is_file())
             with zipfile.ZipFile(archive) as bundle:
@@ -37,6 +41,10 @@ class CloudTreeTests(unittest.TestCase):
             stock = tree / "recovery" / "stock-root"
             recovery.mkdir(parents=True)
             stock.mkdir(parents=True)
+            (tree / "AndroidProducts.mk").write_text(
+                "PRODUCT_MAKEFILES := test\n",
+                encoding="utf-8",
+            )
             target = recovery / "prop.default"
             target.write_text("ro.test=1\n", encoding="utf-8")
             link = recovery / "default.prop"
