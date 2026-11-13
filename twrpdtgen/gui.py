@@ -6,8 +6,10 @@ Colab, and headless CI do not require an X server or tkinter.
 """
 from __future__ import annotations
 
+from contextlib import ExitStack
 from dataclasses import dataclass
 from pathlib import Path
+from tempfile import TemporaryDirectory
 import argparse
 import os
 import queue
@@ -57,6 +59,9 @@ class GUIJob:
             if path is not None and not path.is_file():
                 raise FileNotFoundError(
                     "{} is not an existing image file: {}".format(name, path))
+            if path is not None and not path.name.lower().endswith((".img", ".img.lz4")):
+                raise ValueError(
+                    "{} must be an .img or .img.lz4 file".format(name))
         if self.recovery_fragment and self.recovery_layout == "init_boot":
             raise ValueError(
                 "A vendor_boot fragment cannot be selected with init_boot-only layout")
@@ -130,13 +135,14 @@ def run_job(job: GUIJob, report: Callable[[str], None] = print) -> GUIResult:
     """Execute without tkinter; never flash or modify an Android device."""
     from twrpdtgen.auto_tree import discover_images
     from twrpdtgen.boot_image import ModernImageManager
-    from twrpdtgen.easy import _unique_path
+    from twrpdtgen.easy import _unique_path, _explicit_role, _extract_payload_stream
     from twrpdtgen.next_support import NextOptions
     from twrpdtgen.tree_archive import archive_tree
 
     job.validate()
     report("Preparing selected image(s)...")
-    with _selection(job.source) as (input_dir, explicit):
+    with ExitStack() as resources:
+        input_dir, explicit = resources.enter_context(_selection(job.source))
         try:
             discovered = discover_images(input_dir)
         except ValueError:
@@ -153,16 +159,20 @@ def run_job(job: GUIJob, report: Callable[[str], None] = print) -> GUIResult:
             automatic = getattr(discovered, kind, None) if discovered else None
             candidate = manually_selected or automatic
             if candidate is not None and (
-                    candidate.resolve() == primary.resolve()):
+                    candidate.resolve() == primary.resolve()
+                    or candidate.resolve() == job.source.resolve()):
                 candidate = None
-            # Prevent accidentally mixing a primary image with another image
-            # claiming the same role.
             if (
-                    manually_selected is not None
-                    and primary.stem.lower().rstrip("_ab") == kind
-                    and manually_selected.resolve() != primary.resolve()):
+                    candidate is not None and manually_selected is not None
+                    and _explicit_role(primary) == kind):
                 raise ValueError(
                     "The primary image and selected {} companion conflict".format(kind))
+            if candidate is not None and candidate.name.lower().endswith(".img.lz4"):
+                stage = Path(resources.enter_context(
+                    TemporaryDirectory(prefix="twrpdtgen-companion-")))
+                with candidate.open("rb") as stream:
+                    candidate = _extract_payload_stream(
+                        stream, candidate.name, stage)
             companions[kind] = candidate
 
         report("Primary image: {}".format(primary.name))

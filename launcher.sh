@@ -147,14 +147,15 @@ main() {
         --self-test) self_test; return 0 ;;
         --setup-only) doctor; show_ready; return 0 ;;
         "")
+            export PYTHONPATH="$ROOT_DIR${PYTHONPATH:+:$PYTHONPATH}"
+            if [[ -n "${TERMUX_VERSION:-}" || "${PREFIX:-}" == *"com.termux"* ]]; then
+                # A phone browser does not need legacy Linux tools or a TTY.
+                exec "$PYTHON_BIN" -m twrpdtgen.webgui
+            fi
             doctor
             if is_colab || [[ ! -t 0 ]]; then
                 show_ready
                 return 0
-            fi
-            export PYTHONPATH="$ROOT_DIR${PYTHONPATH:+:$PYTHONPATH}"
-            if [[ -n "${TERMUX_VERSION:-}" || "${PREFIX:-}" == *"com.termux"* ]]; then
-                exec "$PYTHON_BIN" -m twrpdtgen.webgui
             fi
             if [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; then
                 exec "$PYTHON_BIN" -m twrpdtgen.gui

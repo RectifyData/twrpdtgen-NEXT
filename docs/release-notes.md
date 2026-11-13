@@ -1,22 +1,14 @@
-# twrpdtgen-NEXT 3.1.0a21 — Android-friendly private browser GUI
+# twrpdtgen-NEXT 3.1.0a22 — mobile/browser GUI reliability update
 
-Source-only prerelease. Adds a mobile browser interface to complement the
-desktop Tk GUI and independent command-line program.
+Source-only prerelease with the desktop Tk GUI, mobile localhost GUI,
+and fully independent CLI.
 
-- New `twrpdtgen-web` and `python -m twrpdtgen.webgui` entry points.
-- Local-only HTTP server bound to 127.0.0.1; intended for Android/Termux,
-  Windows, and Linux browsers, without requiring a desktop/X11 environment.
-- Mobile responsive dark interface with a floating Tools menu, Android file
-  uploads and manual file paths, companion images, partition and recovery
-  settings, output ZIP download and extraction-only mode.
-- Per-session CSRF token, strict loopback Host checks, no cross-origin API,
-  upload length/path validation, no third-party uploads or telemetry.
-- Reuses the desktop GUI core and CLI generator; preserves generated tree
-  integrity policies and does not flash devices.
-- CLI/bootstrap docs and tests for localhost isolation, upload handling,
-  token checks, generation responses, and downloaded ZIPs.
-- Termux is detected by the Linux launcher to avoid incompatible apt bootstrapping.
+- Termux launcher opens the browser GUI before invoking Linux-only tooling
+  checks or testing for an attached TTY.
+- Optional .img.lz4 companion images are decoded in isolated temporary
+  staging folders using the same validated decoder as primary images.
+- Unsupported companion formats and conflicting image roles are rejected.
+- New regression test verifies decoded companion image handoff.
+- Prior mobile file picker/upload/ZIP download and desktop GUI continue.
 
-Tested automation is not physical-device proof of recovery bootability.
-Generated image file length is not verified partition capacity. User must
-independently verify placement, AVB, encryption, and kernel compatibility.
+A generated recovery source tree is not confirmed flash-safe or bootable.

@@ -70,6 +70,37 @@ class GUIBackendTests(unittest.TestCase):
                 zipping.assert_called_once()
                 self.assertTrue(any("NOT verified" in x for x in log))
 
+    def test_manual_lz4_companion_is_decoded_before_generation(self):
+        from unittest.mock import MagicMock
+        from twrpdtgen.auto_tree import DiscoveredImages
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            primary = root / "recovery.img"
+            primary.write_bytes(b"stock")
+            companion = root / "boot.img.lz4"
+            companion.write_bytes(b"compressed")
+            decoded = root / "boot.img"
+            decoded.write_bytes(b"decoded")
+            selected = DiscoveredImages(primary, primary, None, None, None)
+            generator = MagicMock()
+            generator.dump_to_folder.return_value = root / "output/vendor/device"
+            fake_module = types.ModuleType("twrpdtgen.device_tree")
+            fake_module.DeviceTree = MagicMock(return_value=generator)
+            with patch("twrpdtgen.gui._selection") as selection, \
+                    patch("twrpdtgen.auto_tree.discover_images",
+                          return_value=selected), \
+                    patch("twrpdtgen.easy._extract_payload_stream",
+                          return_value=decoded) as decoder, \
+                    patch.dict(sys.modules, {"twrpdtgen.device_tree": fake_module}), \
+                    patch("twrpdtgen.tree_archive.archive_tree",
+                          return_value=root / "output/tree.zip"):
+                selection.return_value.__enter__.return_value = (root, None)
+                run_job(GUIJob(primary, root / "output", boot_image=companion))
+                decoder.assert_called_once()
+                self.assertEqual(
+                    fake_module.DeviceTree.call_args.kwargs["boot_image"],
+                    decoded)
+
     def test_extraction_does_not_generate_tree(self):
         from unittest.mock import MagicMock
         with tempfile.TemporaryDirectory() as temp:
