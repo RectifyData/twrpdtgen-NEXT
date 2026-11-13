@@ -32,7 +32,7 @@ Easy Mode automatically:
 
 - recognizes standard recovery/boot image roles and A/B slot filenames;
 - gathers matching nearby companion images when you select one standard image;
-- accepts folders, ZIP archives, TAR/TAR.MD5 packages, and `.img.lz4` payloads;
+- accepts folders, ZIP archives, TAR/TAR.MD5/compressed TAR packages, `.img.lz4` payloads, and common factory archives with a nested image ZIP;
 - ignores non-image ZIP contents and blocks unsafe ZIP paths;
 - creates a portable device-tree ZIP automatically;
 - avoids overwriting old output by choosing numbered output names;
