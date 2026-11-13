@@ -126,8 +126,13 @@ def _choose_archive_members(names):
     )
 
 
-def _safe_zip_images(archive: Path, destination: Path) -> int:
-    """Extract only useful Android image members without path traversal."""
+def _safe_zip_images(
+        archive: Path,
+        destination: Path,
+        *,
+        depth: int = 0,
+) -> int:
+    """Extract useful Android image members, following one nested image ZIP."""
     try:
         bundle = zipfile.ZipFile(archive)
     except zipfile.BadZipFile as exc:
@@ -139,7 +144,27 @@ def _safe_zip_images(archive: Path, destination: Path) -> int:
             for info in bundle.infolist()
             if not info.is_dir()
         }
-        selected = _choose_archive_members(infos)
+        try:
+            selected = _choose_archive_members(infos)
+        except EasyModeError:
+            nested = [
+                name for name in infos
+                if PurePosixPath(name).name.lower().endswith(".zip")
+            ]
+            if len(nested) != 1 or depth >= 2:
+                raise
+            nested_path = destination / ".twrpdtgen-nested.zip"
+            with bundle.open(infos[nested[0]]) as src, nested_path.open("wb") as dst:
+                shutil.copyfileobj(src, dst, 1024 * 1024)
+            try:
+                return _safe_zip_images(
+                    nested_path,
+                    destination,
+                    depth=depth + 1,
+                )
+            finally:
+                nested_path.unlink(missing_ok=True)
+
         for name in selected:
             with bundle.open(infos[name]) as src:
                 _extract_payload_stream(src, name, destination)
@@ -161,7 +186,32 @@ def _safe_tar_images(archive: Path, destination: Path) -> int:
             for member in bundle.getmembers()
             if member.isfile()
         }
-        selected = _choose_archive_members(members)
+        try:
+            selected = _choose_archive_members(members)
+        except EasyModeError:
+            nested = [
+                name for name in members
+                if PurePosixPath(name).name.lower().endswith(".zip")
+            ]
+            if len(nested) != 1:
+                raise
+            nested_path = destination / ".twrpdtgen-nested.zip"
+            stream = bundle.extractfile(members[nested[0]])
+            if stream is None:
+                raise EasyModeError(
+                    f"Could not read nested ZIP {nested[0]} from {archive.name}"
+                )
+            with stream, nested_path.open("wb") as dst:
+                shutil.copyfileobj(stream, dst, 1024 * 1024)
+            try:
+                return _safe_zip_images(
+                    nested_path,
+                    destination,
+                    depth=1,
+                )
+            finally:
+                nested_path.unlink(missing_ok=True)
+
         for name in selected:
             stream = bundle.extractfile(members[name])
             if stream is None:
@@ -243,10 +293,14 @@ def prepared_input(source: Path):
         or lowered.endswith(".zip")
         or lowered.endswith(".tar")
         or lowered.endswith(".tar.md5")
+        or lowered.endswith(".tgz")
+        or lowered.endswith(".tar.gz")
+        or lowered.endswith(".tar.xz")
+        or lowered.endswith(".tar.bz2")
     )
     if not supported:
         raise EasyModeError(
-            "Choose a folder, Android .img/.img.lz4, ZIP, TAR, or TAR.MD5 package."
+            "Choose a folder, Android .img/.img.lz4, ZIP, TAR/TAR.MD5, or compressed TAR package."
         )
 
     with tempfile.TemporaryDirectory(prefix="twrpdtgen-easy-") as temp:
@@ -264,7 +318,13 @@ def prepared_input(source: Path):
                 yield root, one
             return
 
-        if lowered.endswith(".tar") or lowered.endswith(".tar.md5"):
+        if (
+                lowered.endswith(".tar")
+                or lowered.endswith(".tar.md5")
+                or lowered.endswith(".tgz")
+                or lowered.endswith(".tar.gz")
+                or lowered.endswith(".tar.xz")
+                or lowered.endswith(".tar.bz2")):
             _safe_tar_images(source, root)
             try:
                 discover_images(root)
@@ -426,9 +486,9 @@ def _pick_with_tkinter() -> Optional[Path]:
         selected = filedialog.askopenfilename(
             title="Choose Android recovery/boot image or ZIP",
             filetypes=[
-                ("Android image/archive", "*.img *.lz4 *.zip *.tar *.md5"),
+                ("Android image/archive", "*.img *.lz4 *.zip *.tar *.md5 *.tgz *.gz *.xz *.bz2"),
                 ("Android image", "*.img *.lz4"),
-                ("Firmware archive", "*.zip *.tar *.md5"),
+                ("Firmware archive", "*.zip *.tar *.md5 *.tgz *.gz *.xz *.bz2"),
                 ("All files", "*.*"),
             ],
         )
@@ -460,7 +520,7 @@ def choose_input() -> Path:
     print()
     print("Easy mode")
     print("---------")
-    print("Drag an Android .img/.img.lz4, ZIP/TAR.MD5, or image folder")
+    print("Drag an Android image, firmware archive, or image folder")
     print("into this window, then press Enter.")
     while True:
         value = _clean_drag_drop_path(input("> "))
@@ -510,7 +570,7 @@ def build_parser() -> ArgumentParser:
         "input",
         nargs="?",
         type=Path,
-        help="folder, Android .img/.img.lz4, ZIP, TAR, or TAR.MD5; omit for picker/prompt",
+        help="folder, Android image, ZIP, TAR/TAR.MD5, or compressed TAR; omit for picker/prompt",
     )
     parser.add_argument("-o", "--tree-output", type=Path)
     parser.add_argument("--archive", type=Path)
