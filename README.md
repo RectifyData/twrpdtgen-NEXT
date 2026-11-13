@@ -251,8 +251,11 @@ actually needed.
 
 For the easiest workflow, open
 **[colab/cloud_firmware_slice.ipynb](colab/cloud_firmware_slice.ipynb)** in
-Google Colab. It now exposes **Generate TWRP device tree** and
-**Extract image only** modes. See
+Google Colab. It exposes **Generate TWRP device tree** and
+**Extract image only** modes. The form uses a separate optional
+`firmware_version` field: the NEXT program version is not a Samsung firmware
+version. Unused/orphaned Colab flags and stale saved cell outputs were removed,
+and a failed command raises an error instead of pretending it succeeded. See
 **[docs/cloud-firmware-slicing.md](docs/cloud-firmware-slicing.md)** for the
 architecture, generation options, package selection, cleanup behavior and
 limitations.

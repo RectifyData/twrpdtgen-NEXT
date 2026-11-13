@@ -43,9 +43,11 @@ goal is **zero local full-firmware bandwidth**, not literally zero bytes.
 
 Open colab/cloud_firmware_slice.ipynb.
 
-The notebook exposes form fields for model, region/CSC, partition, optional
-exact firmware version, package override, parallel download thread count, TWRP
-skeleton, recovery layout, and recovery-root policy.
+The notebook exposes form fields for mode, model, region/CSC, partition,
+optional exact Samsung firmware version (`firmware_version`), TWRP skeleton,
+recovery layout and recovery-root policy. Package defaults to AP and download
+threads to 8 in the options cell. Both can be changed there if needed.
+The notebook tool version is never passed to Samsung FUS as a firmware version.
 
 It now has two modes:
 
@@ -341,9 +343,11 @@ python3 -m twrpdtgen.cloud_slice fetch \
   --colab-download
 ~~~
 
-The Colab notebook now prints the actual cloud-slicer error directly if a later
-download/archive/decompression step fails; it no longer replaces the useful
-message with a generic `CalledProcessError`.
+The Colab run cell checks each subprocess and verifies the requested image or
+ZIP exists before downloading it. Failed downloads or generation commands raise
+an error and do not report a false success. The cell no longer refers to
+removed form values such as keep-firmware, extra download checkboxes or
+unverified partition size fields.
 
 
 ## Downloadable tree ZIP policy
@@ -353,8 +357,9 @@ The generated device tree remains expanded in the Colab workspace, including
 that audit-only stock-root by default because it is ignored by Git, can be over
 100 MiB on a single recovery image, and is not referenced by the build.
 
-Use `--include-stock-root` (or the notebook checkbox) only when the exact
-expanded stock recovery payload is intentionally needed in the downloaded ZIP.
+Use the CLI `--include-stock-root` flag only when the exact expanded stock
+recovery payload is intentionally needed in the downloaded ZIP. The streamlined
+notebook does not include an advanced checkbox for this.
 
 The ZIP writer preserves Unix symlink metadata instead of dereferencing links
 into duplicate regular files. This is important for ramdisk links such as
@@ -373,11 +378,12 @@ file. Populate it only with verified blobs when those helper scripts are needed.
 
 ### Verified partition-size inputs
 
-The full Colab form exposes optional boot, recovery, super, and dynamic-group
-size fields. Values may be byte counts or accepted values such as `64MiB`.
-They are forwarded to the normal NEXT partition-size validation. Leave them
-blank when the exact GPT/lpdump value has not been verified; NEXT deliberately
-does not treat image file length as partition capacity.
+The streamlined Colab form intentionally omits the previously orphaned
+boot/recovery/super/dynamic-group size variables. NEXT leaves unverified
+partition-size fields unset; it does not use the size of a packed image as
+partition capacity. For confirmed GPT/lpdump measurements, the CLI still
+accepts `--boot-size`, `--recovery-size`, `--super-size` and
+`--dynamic-group-size`, in bytes or values such as `64MiB`.
 
 
 ## init_boot-only extraction
