@@ -20,7 +20,8 @@ Double-click `launcher.cmd`. NEXT opens a native picker. Choose:
 - a recovery/boot `.img`;
 - a Samsung/Odin-style `.img.lz4`;
 - a ZIP containing Android images;
-- a TAR/TAR.MD5 package containing recovery/boot images; or
+- a TAR/TAR.MD5/compressed TAR package containing recovery/boot images;
+- a common factory archive containing one nested image ZIP; or
 - a folder containing the images.
 
 You can also drag one of those files/folders directly onto `launcher.cmd`.
