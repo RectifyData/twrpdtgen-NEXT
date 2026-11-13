@@ -11,14 +11,16 @@ Changes:
   arguments, while Colab/non-interactive setup behavior remains unchanged.
 - Adds a native graphical file/folder picker when Tk is available, with a
   terminal drag-and-drop prompt as fallback.
-- Accepts a folder, a single Android `.img`, or a ZIP containing `.img`
-  files.
+- Accepts a folder, a single Android `.img`/`.img.lz4`, a ZIP, or TAR/TAR.MD5
+  firmware packages.
 - Standard image selections automatically collect nearby matching
   `recovery.img`, `boot.img`, `vendor_boot.img`, and `init_boot.img`
   companions, including A/B slot variants.
 - Arbitrarily named single `.img` files are accepted as explicit primary
   images instead of forcing a rename.
-- ZIP handling extracts only safe `.img` members and rejects duplicate image
+- Archive handling extracts only useful recovery/boot `.img`/`.img.lz4`
+  members, decodes standard and Samsung legacy LZ4 automatically, avoids
+  expanding huge unrelated system/vendor images, and rejects duplicate image
   basenames that could mix firmware builds.
 - Existing output is protected by automatic numbered filenames instead of
   silent replacement.
