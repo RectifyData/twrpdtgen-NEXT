@@ -178,7 +178,9 @@ class GenerationTests(unittest.TestCase):
             self.assertIn("TW_DEFAULT_BRIGHTNESS := 180", board)
             self.assertIn("# Detected logical partitions: system vendor", board)
             self.assertNotIn("BOARD_SUPER_PARTITION_SIZE :=", board)
-            self.assertNotIn("BOARD_RECOVERYIMAGE_PARTITION_SIZE :=", board)
+            self.assertIn("BOARD_RECOVERYIMAGE_PARTITION_SIZE := 4096", board)
+            self.assertIn("PROVISIONAL: input recovery.img", board)
+            self.assertNotIn("BOARD_BOOTIMAGE_PARTITION_SIZE :=", board)
             self.assertNotIn("2099-12-31", board)
             self.assertNotIn("--flags 3", board)
             self.assertNotIn("testkey_rsa4096", board)
@@ -203,6 +205,48 @@ class GenerationTests(unittest.TestCase):
             self.assertIn("BOARD_RECOVERYIMAGE_PARTITION_SIZE := 67108864", config)
             again.cleanup()
 
+
+    def test_image_size_hints_for_split_and_recovery_as_boot(self):
+        DeviceTree = load_device_tree(Obj())
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            images = {}
+            for kind, size in (
+                    ("boot", 5000),
+                    ("recovery", 8193),
+                    ("vendor_boot", 4096),
+                    ("init_boot", 1)):
+                path = root / (kind + ".img")
+                path.write_bytes(b"x" * size)
+                images[kind] = path
+            probe = object.__new__(DeviceTree)
+            probe.modern_manager = object()
+            probe.image_info = Obj(source_images=[
+                Obj(kind=kind, source=path)
+                for kind, path in images.items()
+            ])
+            probe.recovery_layout = "dedicated"
+            probe.options = NextOptions()
+            self.assertEqual(probe._image_partition_hints(), {
+                "boot": 8192,
+                "recovery": 12288,
+                "vendor_boot": 4096,
+                "init_boot": 4096,
+            })
+            probe.options = NextOptions(recovery_size=8192)
+            with self.assertRaisesRegex(ValueError, "smaller than"):
+                probe._image_partition_hints()
+            probe.options = NextOptions(
+                recovery_size=16384, boot_size=8192)
+            self.assertEqual(
+                probe._image_partition_hints()["recovery"], 12288)
+
+            # Recovery-as-boot does not create a phantom recovery partition.
+            probe.modern_manager = None
+            probe.image = images["boot"]
+            probe.recovery_layout = "boot"
+            self.assertEqual(
+                probe._image_partition_hints(), {"boot": 8192})
 
     def test_vendor_boot_recovery_fragment_selection_is_unambiguous(self):
         DeviceTree = load_device_tree(Obj())

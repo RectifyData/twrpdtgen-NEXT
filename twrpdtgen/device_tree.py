@@ -30,6 +30,7 @@ from twrpdtgen.next_support import (
     detect_kernel_image_name,
     find_recovery_fstab,
     format_twrp_fstab,
+    image_partition_size_hint,
     normalize_partition_names,
     resolve_skeleton,
     safe_component,
@@ -163,6 +164,7 @@ class DeviceTree:
             self.recovery_ramdisk_roots,
             self.recovery_source,
         ) = self._select_recovery_ramdisk()
+        self.partition_size_hints = self._image_partition_hints()
 
         (
             self.brightness_path,
@@ -203,6 +205,36 @@ class DeviceTree:
                 or getattr(partition, "src", None)
                 for partition
                 in self.fstab.get_ab_partitions_models()))
+
+    def _image_partition_hints(self):
+        """Determine provisional limits from the actual selected image files."""
+        sources = {}
+        if self.modern_manager is not None:
+            for item in self.image_info.source_images:
+                kind = getattr(item, "kind", None)
+                if kind in ("boot", "recovery", "init_boot", "vendor_boot"):
+                    sources[kind] = Path(item.source)
+        elif self.recovery_layout == "dedicated":
+            sources["recovery"] = self.image
+        elif self.recovery_layout == "boot":
+            sources["boot"] = self.image
+
+        hints = {
+            kind: image_partition_size_hint(source)
+            for kind, source in sources.items()
+        }
+        for kind, verified_size in (
+                ("boot", self.options.boot_size),
+                ("recovery", self.options.recovery_size)):
+            if (
+                    verified_size is not None
+                    and kind in hints
+                    and verified_size < hints[kind]):
+                raise ValueError(
+                    f"Verified {kind} partition size ({verified_size} bytes) "
+                    f"is smaller than the supplied {kind} image "
+                    f"({hints[kind]} aligned bytes)")
+        return hints
 
     def _select_recovery_ramdisk(self):
         """Select the actual recovery payload without treating init_boot as recovery."""
@@ -576,6 +608,7 @@ class DeviceTree:
             ab_partition_names=(
                 self.ab_partition_names),
             security_patch=self.security_patch,
+            partition_size_hints=self.partition_size_hints,
             next_options=self.options,
             **kwargs)
 

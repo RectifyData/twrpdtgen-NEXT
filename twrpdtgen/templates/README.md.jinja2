@@ -57,8 +57,10 @@ Parsed geometry is also written to **prebuilt/image-metadata.json**.
 
 ## Mandatory verification before building
 
-1. Compare all partition sizes with stock GPT or lpdump; no values were derived
-   from compressed image length.
+1. Provisional partition-size limits were derived from input image file sizes,
+   rounded UP to 4 KiB. These are NOT verified physical partition capacities.
+   Compare all against stock GPT/lpdump before flashing; custom TWRP may exceed
+   the original image length. Verified --boot-size/--recovery-size take priority.
 2. Confirm recovery placement and the target TWRP branch's vendor_boot/init_boot
    build flags. Extraction support does not make repacking device-independent.
 3. Check ramdisk fragment selection, DTB/DTBO, fstab block devices, slot suffixes,

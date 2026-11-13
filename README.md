@@ -304,8 +304,16 @@ Python-native on Windows, Linux and Colab.
 
 ## Partition metadata
 
-Partition sizes are never inferred from compressed image lengths. Supply
-verified GPT/lpdump values when needed:
+NEXT hardcodes provisional boot/recovery (and modern init_boot/vendor_boot)
+partition-size limits using the actual supplied image file length, rounded up
+to a 4 KiB boundary. This avoids a blank recovery-size field even in cloud
+firmware-slicing workflows.
+
+**These are provisional minimum build limits, not verified physical partition
+capacities.** A packed image may be smaller than its flash partition, and a
+new TWRP image may grow larger than stock. Verify GPT/lpdump before flashing.
+Verified `--boot-size` and `--recovery-size` overrides take precedence.
+For known GPT/super geometry, supply the verified values when needed:
 
 ~~~bash
 python3 -m twrpdtgen recovery.img \

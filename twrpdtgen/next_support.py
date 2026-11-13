@@ -75,6 +75,18 @@ def parse_partition_size(value: str) -> int:
     return result
 
 
+def image_partition_size_hint(image: Path) -> int:
+    """Return the 4 KiB aligned *minimum* size suggested by source bytes.
+
+    Input image byte length is not the actual physical partition capacity.
+    A new recovery build can exceed this limit even when stock fits.
+    """
+    size = Path(image).stat().st_size
+    if size <= 0:
+        raise ValueError("Cannot derive a size from an empty boot image")
+    return ((size + 4095) // 4096) * 4096
+
+
 @dataclass(frozen=True)
 class NextOptions:
     skeleton: str = "auto"

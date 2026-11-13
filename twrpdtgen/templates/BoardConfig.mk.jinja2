@@ -237,17 +237,32 @@ BOARD_BUILD_SYSTEM_ROOT_IMAGE := true
 {% if image_info.pagesize %}
 BOARD_FLASH_BLOCK_SIZE := {{ image_info.pagesize|int * 64 }} # page size * 64
 {% endif %}
-# Only verified partition sizes may be emitted. Input image length is not
-# necessarily equal to its partition size.
+# Verified CLI sizes take precedence. Otherwise hardcode a provisional bound
+# from the selected source image's actual byte length rounded UP to 4 KiB.
+# This is NOT the hardware partition's true size: check GPT/lpdump before flash.
 {% if next_options.boot_size %}
 BOARD_BOOTIMAGE_PARTITION_SIZE := {{ next_options.boot_size }}
+{% elif partition_size_hints is defined and partition_size_hints.boot %}
+# PROVISIONAL: input boot.img file size aligned to 4 KiB, not GPT geometry.
+BOARD_BOOTIMAGE_PARTITION_SIZE := {{ partition_size_hints.boot }}
 {% else %}
 # TODO: Verify boot partition size from the stock partition table.
 {% endif %}
 {% if next_options.recovery_size %}
 BOARD_RECOVERYIMAGE_PARTITION_SIZE := {{ next_options.recovery_size }}
+{% elif partition_size_hints is defined and partition_size_hints.recovery and recovery_layout == "dedicated" %}
+# PROVISIONAL: input recovery.img file size aligned to 4 KiB, not GPT geometry.
+BOARD_RECOVERYIMAGE_PARTITION_SIZE := {{ partition_size_hints.recovery }}
 {% elif recovery_layout == "dedicated" %}
 # TODO: Verify dedicated recovery partition size.
+{% endif %}
+{% if partition_size_hints is defined and partition_size_hints.vendor_boot and image_info.source_images is defined %}
+# PROVISIONAL: input vendor_boot.img file size aligned to 4 KiB, not GPT geometry.
+BOARD_VENDOR_BOOTIMAGE_PARTITION_SIZE := {{ partition_size_hints.vendor_boot }}
+{% endif %}
+{% if partition_size_hints is defined and partition_size_hints.init_boot and image_info.source_images is defined %}
+# PROVISIONAL: input init_boot.img file size aligned to 4 KiB, not GPT geometry.
+BOARD_INIT_BOOT_IMAGE_PARTITION_SIZE := {{ partition_size_hints.init_boot }}
 {% endif %}
 
 BOARD_HAS_LARGE_FILESYSTEM := true
