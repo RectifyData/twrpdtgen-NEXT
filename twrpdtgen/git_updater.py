@@ -41,10 +41,44 @@ class UpdateStatus:
     def can_apply(self) -> bool:
         return self.behind > 0 and self.ahead == 0 and not self.dirty
 
+    @property
+    def state(self) -> str:
+        """A single consistent status for the CLI and every GUI."""
+        if self.dirty:
+            return "local_changes"
+        if self.ahead and self.behind:
+            return "diverged"
+        if self.ahead:
+            return "ahead"
+        if not self.behind:
+            return "up_to_date"
+        return "update_available"
+
+    @property
+    def explanation(self) -> str:
+        messages = {
+            "local_changes": (
+                "Local files are modified or untracked. Clean the working "
+                "tree before updating; no changes will be overwritten."),
+            "diverged": (
+                "This branch has both local and upstream commits. "
+                "Resolve divergence manually before updating."),
+            "ahead": (
+                "The local branch is ahead of upstream. Nothing will be "
+                "checked out automatically."),
+            "up_to_date": (
+                "Already up to date. There is nothing new to check out."),
+            "update_available": (
+                "A clean, fast-forward update is available."),
+        }
+        return messages[self.state]
+
     def to_dict(self):
         value = asdict(self)
         value["available"] = self.available
         value["can_apply"] = self.can_apply
+        value["state"] = self.state
+        value["explanation"] = self.explanation
         return value
 
 
@@ -140,7 +174,9 @@ def apply_update(root: Optional[Path] = None, *, confirmed: bool = False) -> Upd
             "Local branch has {} unpushed commit(s). Fast-forward refused; "
             "resolve the branch history manually.".format(status.ahead))
     if not status.available:
-        return status
+        raise GitUpdateError(
+            "Already up to date. There is nothing new to check out; "
+            "no Git merge or checkout was performed.")
     # Recheck tracked and untracked files immediately before merging.
     if _git(path, "status", "--porcelain", "--untracked-files=all"):
         raise GitUpdateError("Working tree changed; update cancelled.")
@@ -185,14 +221,13 @@ def main(argv=None):
         print("Upstream: {}".format(status.latest[:12]))
         print("Behind: {} | Ahead: {} | Local edits: {}".format(
             status.behind, status.ahead, "yes" if status.dirty else "no"))
-        print(
-            "Up to date." if not status.available else
-            "New commits available." if not args.apply else
-            "Updated; restart twrpdtgen-NEXT to load the new source.")
-        if status.dirty or status.ahead:
-            print("Automatic fast-forward is blocked to protect local changes.")
-        elif args.apply:
-            print("If dependencies changed, re-run the visible package setup.")
+        if args.apply:
+            print("Successfully fast-forwarded to new upstream commits.")
+            print("Restart twrpdtgen-NEXT; reinstall dependencies if required.")
+        else:
+            print(status.explanation)
+            if status.can_apply:
+                print("To update, run: twrpdtgen-update --apply")
     return 0
 
 

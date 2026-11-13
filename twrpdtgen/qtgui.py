@@ -36,7 +36,7 @@ def create_window(initial_source=None, initial_output=None):
         QApplication, QCheckBox, QComboBox, QFileDialog, QFormLayout,
         QFrame, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QMainWindow,
         QMenu, QMessageBox, QPlainTextEdit, QProgressBar, QPushButton,
-        QScrollArea, QToolButton, QVBoxLayout, QWidget,
+        QScrollArea, QTabWidget, QToolButton, QVBoxLayout, QWidget,
     )
 
     class TaskThread(QThread):
@@ -78,47 +78,75 @@ def create_window(initial_source=None, initial_output=None):
             self.busy = False
             self.task = None
             self.result = None
+            self.last_git_status = None
 
             main = QWidget()
+            main.setObjectName("appRoot")
             outer = QVBoxLayout(main)
-            outer.setContentsMargins(16, 12, 16, 12)
-            outer.setSpacing(10)
+            outer.setContentsMargins(22, 18, 22, 16)
+            outer.setSpacing(14)
             self.setCentralWidget(main)
 
-            top = QHBoxLayout()
+            header = QFrame()
+            header.setObjectName("appHeader")
+            top = QHBoxLayout(header)
+            top.setContentsMargins(18, 14, 18, 14)
+            heading = QVBoxLayout()
+            heading.setSpacing(3)
             name = QLabel("Recovery Tree Studio")
             name.setObjectName("title")
-            top.addWidget(name)
+            heading.addWidget(name)
+            tagline = QLabel("Generate TWRP device trees from stock firmware · v{}".format(__version__))
+            tagline.setObjectName("subtitle")
+            heading.addWidget(tagline)
+            top.addLayout(heading)
             top.addStretch(1)
-            top.addWidget(QLabel("PyQt5 · v{}".format(__version__)))
             self.tools = QToolButton(self)
             self.tools.setText("Tools  ⋮")
             self.tools.setPopupMode(QToolButton.InstantPopup)
             menu = QMenu(self.tools)
             menu.addAction("Check Git updates", self.check_updates)
-            menu.addAction("Update from Git…", self.apply_update)
+            self.update_action = menu.addAction("Update from Git…", self.apply_update)
+            self.update_action.setEnabled(False)
             menu.addSeparator()
             menu.addAction("Open output folder", self.open_output)
             menu.addAction("Copy logs", self.copy_logs)
             menu.addAction("About & safety", self.about)
             self.tools.setMenu(menu)
             top.addWidget(self.tools)
-            outer.addLayout(top)
+            outer.addWidget(header)
 
-            scroll = QScrollArea()
-            scroll.setWidgetResizable(True)
-            content = QWidget()
-            body = QVBoxLayout(content)
-            body.setContentsMargins(4, 4, 4, 12)
-            body.setSpacing(12)
-            scroll.setWidget(content)
-            outer.addWidget(scroll, stretch=1)
+            # Keep the everyday workflow compact. Advanced settings and the
+            # updater live on separate pages, rather than one long scroll.
+            self.tabs = QTabWidget()
+            self.tabs.setObjectName("workspaceTabs")
+            outer.addWidget(self.tabs, stretch=1)
+
+            def add_page(title):
+                page = QWidget()
+                wrapper = QVBoxLayout(page)
+                wrapper.setContentsMargins(0, 8, 0, 0)
+                scroll = QScrollArea(page)
+                scroll.setObjectName("formScroll")
+                scroll.setWidgetResizable(True)
+                content = QWidget()
+                layout = QVBoxLayout(content)
+                layout.setContentsMargins(6, 10, 12, 16)
+                layout.setSpacing(14)
+                scroll.setWidget(content)
+                wrapper.addWidget(scroll)
+                self.tabs.addTab(page, title)
+                return layout
+
+            build_body = add_page("Build tree")
+            advanced_body = add_page("Advanced settings")
+            update_body = add_page("Updates")
 
             inputs = QGroupBox("1 · Firmware source")
             ins = QFormLayout(inputs)
             self.add_path(ins, "source", "Image / archive / folder",
                           str(initial_source or ""), folder_choice=True)
-            body.addWidget(inputs)
+            build_body.addWidget(inputs)
 
             companions = QGroupBox("2 · Optional companion boot images")
             cp = QFormLayout(companions)
@@ -127,7 +155,7 @@ def create_window(initial_source=None, initial_output=None):
                     ("vendor_boot", "vendor_boot.img"),
                     ("init_boot", "init_boot.img")):
                 self.add_path(cp, key, label)
-            body.addWidget(companions)
+            build_body.addWidget(companions)
 
             destination = QGroupBox("3 · Output")
             dest = QFormLayout(destination)
@@ -137,7 +165,7 @@ def create_window(initial_source=None, initial_output=None):
             self.add_path(dest, "archive", "ZIP location (optional)", save=True)
             self.add_combo(dest, "mode", "Action",
                            ["tree", "extract"], default="tree")
-            body.addWidget(destination)
+            build_body.addWidget(destination)
 
             options = QGroupBox("4 · Recovery configuration")
             opts = QFormLayout(options)
@@ -161,7 +189,7 @@ def create_window(initial_source=None, initial_output=None):
                 "verify the physical GPT/lpdump capacity before flashing.")
             note.setWordWrap(True)
             opts.addRow(note)
-            body.addWidget(options)
+            advanced_body.addWidget(options)
 
             advanced = QGroupBox("5 · CLI options (synchronized automatically)")
             advanced_layout = QFormLayout(advanced)
@@ -183,9 +211,9 @@ def create_window(initial_source=None, initial_output=None):
                     widget.setPlaceholderText(item["label"])
                     advanced_layout.addRow(item["flag"], widget)
                 self.extras[key] = widget
-            body.addWidget(advanced)
+            advanced_body.addWidget(advanced)
 
-            flags = QGroupBox("Safety and packaging")
+            flags = QGroupBox("Packaging & safety")
             flag_layout = QVBoxLayout(flags)
             for key, label in (
                     ("overwrite", "Replace an existing tree (confirmation required)"),
@@ -195,22 +223,45 @@ def create_window(initial_source=None, initial_output=None):
                 flag_layout.addWidget(widget)
             flag_layout.addWidget(QLabel(
                 "A generated tree is source only — never automatically flashed."))
-            body.addWidget(flags)
+            build_body.addWidget(flags)
 
-            updates = QGroupBox("Git updater")
-            up = QHBoxLayout(updates)
+            updates = QGroupBox("Git source updater")
+            up_layout = QVBoxLayout(updates)
+            up_layout.setSpacing(12)
+            self.git_status_badge = QLabel("NOT CHECKED")
+            self.git_status_badge.setObjectName("updateBadge")
+            up_layout.addWidget(self.git_status_badge)
+            self.git_details = QLabel(
+                "Check the configured upstream to see whether new commits "
+                "are available. Updating is disabled until a valid "
+                "fast-forward update has been verified.")
+            self.git_details.setObjectName("updateDetails")
+            self.git_details.setWordWrap(True)
+            up_layout.addWidget(self.git_details)
+            up_buttons = QHBoxLayout()
             self.check_button = QPushButton("Check for updates")
             self.check_button.clicked.connect(self.check_updates)
             self.update_button = QPushButton("Update from Git…")
             self.update_button.clicked.connect(self.apply_update)
-            up.addWidget(self.check_button)
-            up.addWidget(self.update_button)
-            up.addStretch()
-            body.addWidget(updates)
-            body.addStretch()
+            self.update_button.setEnabled(False)
+            up_buttons.addWidget(self.check_button)
+            up_buttons.addWidget(self.update_button)
+            up_buttons.addStretch()
+            up_layout.addLayout(up_buttons)
+            safety = QLabel(
+                "Only an explicit fast-forward of a clean Git checkout is "
+                "allowed. No reset, stash, or checkout will run when "
+                "already up to date. Restart to use updated source.")
+            safety.setObjectName("hint")
+            safety.setWordWrap(True)
+            up_layout.addWidget(safety)
+            update_body.addWidget(updates)
+            build_body.addStretch()
+            advanced_body.addStretch()
+            update_body.addStretch()
 
             footer = QHBoxLayout()
-            self.go_button = QPushButton("Generate / Extract")
+            self.go_button = QPushButton("Generate candidate tree" )
             self.go_button.setObjectName("primary")
             self.go_button.clicked.connect(self.generate)
             footer.addWidget(self.go_button)
@@ -227,7 +278,7 @@ def create_window(initial_source=None, initial_output=None):
             self.log = QPlainTextEdit()
             self.log.setReadOnly(True)
             self.log.setMaximumBlockCount(500)
-            self.log.setFixedHeight(158)
+            self.log.setFixedHeight(110)
             outer.addWidget(self.log)
             self.append_log("Desktop GUI and CLI share the same generator.")
 
@@ -306,8 +357,39 @@ def create_window(initial_source=None, initial_output=None):
             self.busy = running
             self.go_button.setEnabled(not running)
             self.check_button.setEnabled(not running)
-            self.update_button.setEnabled(not running)
+            can_update = bool(
+                not running and self.last_git_status is not None
+                and self.last_git_status.can_apply)
+            self.update_button.setEnabled(can_update)
+            self.update_action.setEnabled(can_update)
             self.progress.setVisible(running)
+
+        def set_git_status(self, status=None, *, error=None):
+            """Keep the status label and both update affordances in sync."""
+            self.last_git_status = status
+            if error:
+                headline = "CHECK FAILED"
+                detail = str(error)
+            elif status is None:
+                headline = "NOT CHECKED"
+                detail = "Check for updates to enable Git actions."
+            elif status.can_apply:
+                headline = "UPDATE AVAILABLE"
+                detail = (
+                    "{} new commit(s) on {}. You can safely fast-forward."
+                    .format(status.behind, status.upstream))
+            else:
+                labels = {
+                    "up_to_date": "UP TO DATE",
+                    "local_changes": "LOCAL CHANGES",
+                    "diverged": "DIVERGED",
+                    "ahead": "LOCAL BRANCH AHEAD",
+                }
+                headline = labels.get(status.state, "NO SAFE UPDATE")
+                detail = status.explanation
+            self.git_status_badge.setText(headline)
+            self.git_details.setText(detail)
+            self.busy_state(self.busy)
 
         def launch_task(self, kind, job=None):
             if self.busy:
@@ -337,10 +419,20 @@ def create_window(initial_source=None, initial_output=None):
             self.launch_task("generate", job)
 
         def check_updates(self):
+            if self.busy:
+                return
+            self.set_git_status()
             self.launch_task("check")
 
         def apply_update(self):
             if self.busy:
+                return
+            if self.last_git_status is None or not self.last_git_status.can_apply:
+                self.tabs.setCurrentIndex(2)
+                self.append_log(
+                    self.last_git_status.explanation
+                    if self.last_git_status is not None
+                    else "Check for updates first. No update was performed.")
                 return
             if QMessageBox.question(
                     self, "Confirm Git update",
@@ -362,24 +454,23 @@ def create_window(initial_source=None, initial_output=None):
                     "Check bootability, AVB, partition geometry and encryption "
                     "before flashing.")
             elif kind == "check":
+                self.set_git_status(value)
+                self.tabs.setCurrentIndex(2)
                 self.append_log(
-                    "Git upstream {}: {} new / {} local commits, dirty={}."
-                    .format(value.upstream, value.behind,
-                            value.ahead, value.dirty))
-                if value.can_apply:
-                    self.append_log("Update available. Use Update from Git.")
-                elif value.available:
-                    self.append_log("Update blocked until branch conflicts/edits are resolved.")
-                else:
-                    self.append_log("Up to date.")
+                    "{} · {} behind, {} ahead, dirty={}."
+                    .format(value.state, value.behind, value.ahead,
+                            value.dirty))
             else:
-                self.append_log("Git HEAD: {}".format(value.current[:12]))
+                self.set_git_status(value)
+                self.append_log("Updated Git HEAD: {}".format(value.current[:12]))
                 QMessageBox.information(
-                    self, "Git update", "Checked out the latest allowed source.\n"
+                    self, "Git update completed",
+                    "New upstream commits were fast-forwarded successfully.\n"
                     "Restart twrpdtgen-NEXT and rerun setup if dependencies changed.")
 
         def task_failed(self, error):
             self.busy_state(False)
+            self.set_git_status(error=error)
             self.append_log("ERROR: " + str(error))
             QMessageBox.critical(self, "Operation failed", str(error))
 
@@ -434,24 +525,46 @@ def main(argv=None):
         app = QApplication([sys.argv[0]])
     app.setStyle("Fusion")
     app.setStyleSheet("""
-        QWidget { background: #111a2a; color: #e6effe; font-size: 12px; }
+        QWidget { background: #101722; color: #e9f0fa;
+                  font-size: 12px; font-family: "Segoe UI", Arial, sans-serif; }
+        QFrame#appHeader { background: #192638; border: 1px solid #31445c;
+                           border-radius: 13px; }
+        QLabel#title { font-size: 23px; font-weight: 700; color: #f6f9ff; }
+        QLabel#subtitle, QLabel#hint, QLabel#updateDetails { color: #afbed1; }
+        QGroupBox { background: #182333; border: 1px solid #304057;
+                    margin-top: 18px; padding: 19px 13px 13px;
+                    border-radius: 11px; font-size: 13px; font-weight: 600; }
+        QGroupBox::title { subcontrol-origin: margin; left: 13px;
+                           padding: 0 6px; color: #dce9fa; }
         QLineEdit, QComboBox, QPlainTextEdit {
-            background: #101e33; border: 1px solid #3b5478;
-            padding: 7px; border-radius: 6px;
+            background: #0d1725; color: #f3f7fe; border: 1px solid #3a506a;
+            border-radius: 7px; padding: 8px; selection-background-color: #4774bd;
         }
-        QGroupBox {
-            border: 1px solid #324763; margin-top: 11px; padding-top: 12px;
-            border-radius: 7px; font-weight: 600;
-        }
-        QGroupBox::title { subcontrol-origin: margin; left: 12px; }
-        QPushButton, QToolButton {
-            background: #29486f; border: 1px solid #5276a3; padding: 8px;
-            border-radius: 7px;
-        }
-        QPushButton:hover, QToolButton:hover { background: #365b89; }
-        QPushButton#primary { background: #3a72c4; font-weight: bold; }
-        QLabel#title { font-size: 21px; font-weight: bold; }
-        QScrollArea { border: 0; }
+        QLineEdit:focus, QComboBox:focus { border: 1px solid #82aaff; }
+        QPushButton, QToolButton { background: #263c58; color: #e8f1ff;
+                     border: 1px solid #405a79; border-radius: 8px;
+                     padding: 9px 13px; font-weight: 500; }
+        QPushButton:hover:enabled, QToolButton:hover:enabled { background: #365477; }
+        QPushButton:disabled { background: #202b39; border-color: #29394b;
+                               color: #8291a3; }
+        QPushButton#primary { background: #4379d1; color: white;
+                              border-color: #5b91eb; font-weight: 650; }
+        QPushButton#primary:hover { background: #5489df; }
+        QLabel#updateBadge { font-size: 15px; font-weight: 700;
+                             color: #b8d1fa; }
+        QPlainTextEdit { font-family: Consolas, "Courier New", monospace; }
+        QTabWidget::pane { border: none; background: #101722; }
+        QTabBar::tab { background: transparent; color: #a7b7cc;
+                       border-bottom: 2px solid #28364a;
+                       padding: 12px 22px; margin-right: 4px; }
+        QTabBar::tab:selected { color: #eef5ff; border-color: #72a1fd; }
+        QTabBar::tab:hover { color: white; background: #1a2a3d; }
+        QScrollArea#formScroll { border: none; background: transparent; }
+        QScrollBar:vertical { background: #152030; width: 10px; }
+        QScrollBar::handle:vertical { background: #405a78; border-radius: 5px; }
+        QCheckBox { spacing: 8px; }
+        QProgressBar { background: #23344a; border: 0; border-radius: 5px; }
+        QProgressBar::chunk { background: #6da0f8; border-radius: 5px; }
     """)
     window = create_window(args.source, args.output)
     window.show()

@@ -301,6 +301,7 @@ class NextWindow:
         self.events = queue.Queue()
         self.busy = False
         self.result = None
+        self.last_git_status = None
         root.title("twrpdtgen-NEXT  {}  |  Recovery tree studio".format(__version__))
         root.geometry("980x820")
         root.minsize(650, 560)
@@ -354,7 +355,10 @@ class NextWindow:
         menu.add_command(label="Copy logs", command=self._copy_logs)
         menu.add_separator()
         menu.add_command(label="Check Git updates", command=self._check_updates)
-        menu.add_command(label="Update from Git…", command=self._apply_update)
+        menu.add_command(
+            label="Update from Git…", command=self._apply_update,
+            state="disabled")
+        self.tools_menu = menu
         menu.add_separator()
         menu.add_command(label="About and safety", command=self._about)
         self.tools_button["menu"] = menu
@@ -504,8 +508,13 @@ class NextWindow:
             update_row, text="Check for updates", command=self._check_updates)
         self.update_check_button.pack(side="left")
         self.update_apply_button = ttk.Button(
-            update_row, text="Update from Git…", command=self._apply_update)
+            update_row, text="Update from Git…", command=self._apply_update,
+            state="disabled")
         self.update_apply_button.pack(side="left", padx=10)
+        self.git_status_text = tk.StringVar(
+            value="Not checked · Run Check for updates first")
+        ttk.Label(updater, textvariable=self.git_status_text,
+                  wraplength=740).pack(anchor="w", pady=(8, 0))
         ttk.Label(updater, text=(
             "Checks the configured upstream; refuses modified files or "
             "diverged branches. An update requires confirmation and restart."
@@ -617,6 +626,14 @@ class NextWindow:
         }
         return result
 
+    def _sync_update_controls(self):
+        allowed = (
+            not self.busy and self.last_git_status is not None
+            and self.last_git_status.can_apply)
+        state = "normal" if allowed else "disabled"
+        self.update_apply_button.configure(state=state)
+        self.tools_menu.entryconfigure("Update from Git…", state=state)
+
     def _check_updates(self):
         self._start_update("check")
 
@@ -627,6 +644,16 @@ class NextWindow:
         from tkinter import messagebox
         if self.busy:
             return
+        if mode == "apply" and (
+                self.last_git_status is None
+                or not self.last_git_status.can_apply):
+            self.status.set("No verified update available")
+            self.git_status_text.set(
+                self.last_git_status.explanation
+                if self.last_git_status is not None
+                else "Check for updates first; nothing was modified.")
+            self._sync_update_controls()
+            return
         if mode == "apply" and not messagebox.askyesno(
                 "Confirm Git update",
                 "Fetch and fast-forward the source checkout from its "
@@ -634,10 +661,13 @@ class NextWindow:
                 "commits will be protected. Restart after updating.",
                 parent=self.root):
             return
+        if mode == "check":
+            self.last_git_status = None
+            self.git_status_text.set("Checking remote tracking branch...")
         self.busy = True
         self.go.configure(state="disabled")
         self.update_check_button.configure(state="disabled")
-        self.update_apply_button.configure(state="disabled")
+        self._sync_update_controls()
         self.progress.start(14)
         self.status.set("Checking Git upstream..." if mode == "check"
                         else "Applying confirmed fast-forward...")
@@ -675,7 +705,7 @@ class NextWindow:
         self.result = None
         self.go.configure(state="disabled")
         self.update_check_button.configure(state="disabled")
-        self.update_apply_button.configure(state="disabled")
+        self._sync_update_controls()
         self.progress.start(14)
         self.status.set("Working — see log below")
         self._message("")
@@ -706,17 +736,19 @@ class NextWindow:
                     self.progress.stop()
                     self.go.configure(state="normal")
                     self.update_check_button.configure(state="normal")
-                    self.update_apply_button.configure(state="normal")
                     if kind == "update-check":
+                        self.last_git_status = value
+                        self.git_status_text.set(value.explanation)
                         self._message(
-                            "Upstream {}: {} behind, {} ahead, dirty={}."
-                            .format(value.upstream, value.behind,
+                            "{} · Upstream {}: {} behind, {} ahead, dirty={}."
+                            .format(value.state, value.upstream, value.behind,
                                     value.ahead, value.dirty))
                         self.status.set(
                             "Update available" if value.can_apply
-                            else "Resolve local edits/divergence" if value.available
-                            else "Already up to date")
+                            else value.explanation)
                     elif kind == "update-done":
+                        self.last_git_status = value
+                        self.git_status_text.set(value.explanation)
                         self._message(
                             "Git HEAD now {}. Restart the application; "
                             "rerun setup if dependencies changed."
@@ -736,9 +768,13 @@ class NextWindow:
                             "Recovery bootability and flash safety remain unverified.",
                             parent=self.root)
                     else:
+                        self.last_git_status = None
+                        self.git_status_text.set(
+                            "Update state unknown · Check for updates again")
                         self.status.set("Failed — check the log")
                         self._message("ERROR: " + str(value))
-                        messagebox.showerror("Generation failed", str(value), parent=self.root)
+                        messagebox.showerror("Operation failed", str(value), parent=self.root)
+                    self._sync_update_controls()
         except queue.Empty:
             pass
         if self.busy:

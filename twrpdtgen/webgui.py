@@ -142,8 +142,8 @@ button:disabled{opacity:.5;cursor:wait}
 </section>
 <section class="card"><h2>Git updater</h2>
 <div class="actions"><button id="gitCheck">Check for updates</button>
-<button id="gitApply">Update from Git…</button></div>
-<p id="gitResult" class="note" role="status">Checks the configured Git tracking branch. Updates require confirmation, preserve modified files, and are fast-forward only.</p>
+<button id="gitApply" disabled>Update from Git…</button></div>
+<p id="gitResult" class="note" role="status">Not checked. Use Check for updates to see if a clean fast-forward is available. The update action stays disabled otherwise.</p>
 </section>
 </main>
 <script>
@@ -151,7 +151,7 @@ button:disabled{opacity:.5;cursor:wait}
 const csrf=__TOKEN__;
 const el=id=>document.getElementById(id);
 const fields=["source","output","archive","boot_image","vendor_boot","init_boot","skeleton","recovery_layout","recovery_root_mode","recovery_fragment","boot_size","recovery_size","super_size","dynamic_group_size"];
-let polling=null,active=false,gitBusy=false;
+let polling=null,active=false,gitBusy=false,gitStatus=null;
 let syncedExtras=[];
 async function loadSharedOptions(){
  const response=await fetch("/api/options",{cache:"no-store"});
@@ -207,7 +207,17 @@ el("toggleAdvanced").onclick=()=>{let a=el("advanced");a.style.display=a.style.d
 el("copyLogs").onclick=async()=>{await navigator.clipboard.writeText(el("log").textContent);tools(false)};
 el("about").onclick=()=>{tools(false);alert("twrpdtgen-NEXT is an offline recovery source-tree generator. Generated trees and inferred partition sizes are not proof of flash safety.")};
 function status(s){el("status").textContent=s}
-function working(on){active=on;el("generate").disabled=on;el("extract").disabled=on;el("gitCheck").disabled=on||gitBusy;el("gitApply").disabled=on||gitBusy;el("progress").style.display=on?"block":"none"}
+function working(on){
+ active=on;
+ el("generate").disabled=on;
+ el("extract").disabled=on;
+ el("gitCheck").disabled=on||gitBusy;
+ const canApply=!on&&!gitBusy&&Boolean(gitStatus?.can_apply);
+ el("gitApply").disabled=!canApply;
+ el("applyGitMenu").disabled=!canApply;
+ el("progress").style.display=on?"block":"none";
+}
+working(false);
 async function upload(input,name){
 const file=el(input).files[0];if(!file)return null;
 status("Uploading "+file.name+" to the local generator...");
@@ -270,17 +280,40 @@ try{
 }
 async function gitAction(kind){
  if(active||gitBusy)return;
- if(kind==="apply"&&!confirm("Fetch and fast-forward the Git checkout? Local edits, untracked files and diverged commits will not be overwritten. Restart the app afterward."))return;
- gitBusy=true;working(active);
- el("gitResult").textContent=kind==="check"?"Fetching remote Git updates…":"Applying confirmed fast-forward…";
+ if(kind==="apply" && !gitStatus?.can_apply){
+  el("gitResult").textContent=gitStatus?.explanation||
+    "Check for updates before applying. No checkout was performed.";
+  working(active);
+  return;
+ }
+ if(kind==="apply"&&!confirm(
+  "Fast-forward this clean Git checkout to "+gitStatus.latest.slice(0,12)+
+  "? Local edits, untracked files and diverged commits are never overwritten."))return;
+ if(kind==="check")gitStatus=null;
+ gitBusy=true;
+ working(active);
+ el("gitResult").textContent=kind==="check"
+  ?"Checking configured upstream for changes…"
+  :"Applying verified fast-forward…";
  try{
   const result=await send("/api/git/"+kind,kind==="apply"?{confirmed:true}:{});
-  const updated=result.available?"New upstream commits: "+result.behind:"No new upstream commits";
-  const block=result.dirty||result.ahead?" — update blocked: local edits or ahead commits":"";
-  el("gitResult").textContent=(kind==="apply"?"Git HEAD: "+result.current.slice(0,12)+". Restart application. ":
-    updated+". ")+result.branch+" → "+result.upstream+block;
- }catch(error){el("gitResult").textContent="Git updater: "+error.message}
- finally{gitBusy=false;working(active)}
+  gitStatus=result;
+  if(kind==="apply"){
+   el("gitResult").textContent="Updated to "+result.current.slice(0,12)+
+     ". Restart this tool to load new code.";
+  }else{
+   el("gitResult").textContent=result.explanation+
+     "  ·  "+result.branch+" → "+result.upstream+
+     "  ·  "+result.behind+" behind / "+result.ahead+" ahead";
+  }
+ }catch(error){
+  gitStatus=null;
+  el("gitResult").textContent="Git updater: "+error.message+
+    " Recheck the repository state before trying again.";
+ }finally{
+  gitBusy=false;
+  working(active);
+ }
 }
 el("gitCheck").onclick=()=>gitAction("check");
 el("gitApply").onclick=()=>gitAction("apply");

@@ -60,6 +60,23 @@ Unsupported complex argparse shapes fail CI instead of silently disappearing:
 their adapter must be updated before release. Source trees remain unverified
 for bootability and physical flash partition capacity.
 
+## Streamlined PyQt5 interface and correct Git update availability
+
+The PyQt5 frontend now has a clean, focused **Build tree / Advanced settings /
+Updates** layout instead of placing every option into one scrolling view.
+The generator and progress logs remain available, while Git status has a
+dedicated view that explains whether a new fast-forward is possible.
+
+**Check for updates first.** The *Update from Git* control remains disabled
+when the repository has not been checked, is already up to date, has local
+edits, or has ahead/diverged commits. It only enables after a successful
+check reports a clean, behind-only tracking branch.
+
+The updater itself also rejects `--apply` on an up-to-date checkout;
+it does not invoke `git merge`, `git checkout`, `git reset` or `git stash`
+when no new commits exist. The Tk fallback and Android browser GUI follow
+the same enabled/disabled logic. Rechecking is required after errors.
+
 ## PyQt5 desktop GUI + Git updater
 
 **PyQt5 is now the preferred Windows/Linux desktop frontend**, with the

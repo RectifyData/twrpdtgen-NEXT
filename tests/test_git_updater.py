@@ -112,6 +112,40 @@ class GitUpdaterTests(unittest.TestCase):
         with self.assertRaises(GitUpdateError):
             checkout_root(nested)
 
+    def test_up_to_date_update_is_blocked_without_running_merge(self):
+        from unittest.mock import patch
+        status = check_updates(self.work)
+        self.assertFalse(status.available)
+        self.assertFalse(status.can_apply)
+        self.assertEqual(status.state, "up_to_date")
+        self.assertIn("nothing new", status.explanation.lower())
+        current = self.git(self.work, "rev-parse", "HEAD")
+        with patch("twrpdtgen.git_updater._git", wraps=__import__(
+                "twrpdtgen.git_updater", fromlist=["_git"])._git) as invoke:
+            with self.assertRaisesRegex(GitUpdateError, "Already up to date"):
+                apply_update(self.work, confirmed=True)
+            self.assertFalse(any(
+                call.args[1] in ("merge", "checkout", "reset", "stash")
+                for call in invoke.call_args_list))
+        self.assertEqual(current, self.git(self.work, "rev-parse", "HEAD"))
+        self.assertEqual(status.to_dict()["state"], "up_to_date")
+
+    def test_status_explains_why_updates_are_not_allowed(self):
+        from twrpdtgen.git_updater import UpdateStatus
+        values = dict(root="/tmp/test", branch="main", upstream="origin/main",
+                      current="a" * 40, latest="a" * 40)
+        dirty = UpdateStatus(**values, ahead=0, behind=0, dirty=True)
+        self.assertEqual(dirty.state, "local_changes")
+        self.assertFalse(dirty.can_apply)
+        ahead = UpdateStatus(**values, ahead=1, behind=0, dirty=False)
+        self.assertEqual(ahead.state, "ahead")
+        divergent = UpdateStatus(**values, ahead=1, behind=1, dirty=False)
+        self.assertEqual(divergent.state, "diverged")
+        self.assertFalse(divergent.can_apply)
+        available = UpdateStatus(**values, ahead=0, behind=1, dirty=False)
+        self.assertEqual(available.state, "update_available")
+        self.assertTrue(available.can_apply)
+
     def test_offline_check_does_not_fetch(self):
         self.peer_commit()
         status = check_updates(self.work, fetch=False)

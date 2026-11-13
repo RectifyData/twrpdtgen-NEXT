@@ -42,6 +42,19 @@ If a future CLI argument has an unsupported structure, automated regression
 checks fail rather than silently dropping functionality. Extend the adapter
 for such actions before publishing.
 
+## v3.1.0a25 update availability and UI
+
+The desktop UI has three focused PyQt5 tabs: **Build tree**, **Advanced
+settings**, and **Updates**. Git update state is visible on the Updates tab.
+The action starts disabled and only becomes available after a successful
+check confirms a clean, behind-only tracking branch. It remains disabled
+when current, ahead, diverged, dirty, or when Git is unavailable.
+
+The Tk fallback and Android browser GUI enforce the same check-first rule.
+Running `twrpdtgen-update --apply` when already up to date exits with an
+explicit informative error rather than implying that an update happened.
+No Git merge or checkout runs in that case.
+
 ## PyQt5 desktop GUI and safe Git updater
 
 PyQt5 is the preferred desktop GUI when installed; Tk remains the fallback.

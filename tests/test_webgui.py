@@ -42,6 +42,8 @@ class LocalWebGUITests(unittest.TestCase):
             self.assertIn("Recovery Tree Studio", page)
             self.assertIn('id="cliSyncedOptions"', page)
             self.assertIn('fetch("/api/options"', page)
+            self.assertIn('id="gitApply" disabled', page)
+            self.assertIn('gitStatus?.can_apply', page)
             self.assertIn(self.state.token, page)
             self.assertEqual(res.headers["X-Frame-Options"], "DENY")
             self.assertEqual(res.headers["Cache-Control"], "no-store")
@@ -136,6 +138,20 @@ class LocalWebGUITests(unittest.TestCase):
                     json.dumps({"confirmed": True}).encode(), headers) as res:
                 self.assertEqual(json.load(res)["branch"], "main")
                 apply.assert_called_once_with(confirmed=True)
+
+    def test_up_to_date_apply_is_rejected_without_any_checkout(self):
+        from twrpdtgen.git_updater import GitUpdateError
+        headers = {"X-CSRF-Token": self.state.token,
+                   "Content-Type": "application/json"}
+        with patch("twrpdtgen.git_updater.apply_update",
+                   side_effect=GitUpdateError(
+                       "Already up to date. Nothing new to check out.")) as updater:
+            with self.assertRaises(HTTPError) as exc:
+                self.request(
+                    "/api/git/apply", "POST",
+                    json.dumps({"confirmed": True}).encode(), headers)
+            self.assertEqual(exc.exception.code, 409)
+            updater.assert_called_once_with(confirmed=True)
 
     def test_git_update_rejected_during_generation(self):
         headers = {"X-CSRF-Token": self.state.token,
