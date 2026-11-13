@@ -215,7 +215,7 @@ def build_parser() -> ArgumentParser:
     )
     parser.add_argument(
         "--recovery-layout",
-        choices=("auto", "dedicated", "boot", "vendor_boot"),
+        choices=("auto", "dedicated", "boot", "vendor_boot", "init_boot"),
         default="auto",
     )
     parser.add_argument(

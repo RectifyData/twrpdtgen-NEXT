@@ -388,13 +388,21 @@ def _parse_boot(path, output):
                 output / "boot_signature", image_size)
 
     stem = Path(path).stem.lower()
+    if stem.endswith(("_a", "_b")):
+        stem = stem[:-2]
     if stem == "recovery":
         kind, hint = "recovery", "dedicated"
     elif stem == "init_boot" or (
             version == 4 and kernel_size == 0):
+        # Generic Android 13+ ramdisk: extractable, but not automatically a
+        # standalone recovery partition or a complete recovery image.
         kind, hint = "init_boot", None
     else:
-        kind, hint = "boot", None
+        kind = "boot"
+        hint = (
+            "boot" if root is not None
+            and looks_like_recovery_payload(root)
+            else None)
     roots = [root] if root else []
     return ParsedImage(
         Path(path), kind, str(version), BOOT_PAGE_SIZE, image_size,
@@ -641,17 +649,23 @@ class ModernImageManager:
                 "No extractable ramdisk found in supplied images")
         address_source = vendor or boot_source
         recovery_image = by_kind.get("recovery")
-        layout_hint = (
-            "dedicated"
-            if recovery_image is not None
+        # Actual dedicated/typed recovery sources take priority. init_boot
+        # is a generic ramdisk extraction fallback when recovery placement
+        # cannot be proved from the other supplied images.
+        detected = (
+            "dedicated" if recovery_image is not None
             else (
                 vendor.recovery_layout_hint
                 if vendor and vendor.recovery_layout_hint
                 else next(
                     (item.recovery_layout_hint
                      for item in self.parsed
-                     if item.recovery_layout_hint),
+                     if item.kind == "boot" and item.recovery_layout_hint),
                     None)))
+        layout_hint = (
+            detected
+            or ("init_boot" if init_boot_image
+                and init_boot_image.ramdisk_roots else None))
         return CombinedImageInfo(
             source_images=self.parsed,
             primary=primary,

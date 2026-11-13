@@ -237,7 +237,7 @@ class DeviceTree:
         return hints
 
     def _select_recovery_ramdisk(self):
-        """Select the actual recovery payload without treating init_boot as recovery."""
+        """Select recovery and generic init_boot sources without guessing placement."""
         if self.modern_manager is None:
             if self.recovery_fragment is not None:
                 raise ValueError(
@@ -259,6 +259,46 @@ class DeviceTree:
         recovery_image = by_kind.get("recovery")
         boot_image = by_kind.get("boot")
         vendor_image = by_kind.get("vendor_boot")
+        init_image = by_kind.get("init_boot")
+        init_roots = list(init_image.ramdisk_roots) if init_image else []
+
+        def with_init_boot(roots, source):
+            # On split GKI layouts the generic ramdisk contributes to the
+            # effective recovery environment even if vendor_boot supplies
+            # the RECOVERY fragment. Vendor files overwrite generic files.
+            if not init_roots:
+                return list(roots), source
+            combined = init_roots + list(roots)
+            return combined, {
+                **source,
+                "supplemental_images": [init_image.source.name],
+            }
+
+        if self.recovery_layout == "init_boot":
+            if self.recovery_fragment is not None:
+                raise ValueError(
+                    "--recovery-fragment requires vendor_boot layout")
+            if not init_roots:
+                raise ValueError(
+                    "init_boot extraction selected but init_boot.img has "
+                    "no extractable generic ramdisk")
+            # A single untyped vendor/platform fragment can supply the
+            # fstab and device-specific recovery resources. Never merge
+            # ambiguous board variants or DLKM fragments into the root.
+            extra = []
+            if vendor_image and len(vendor_image.vendor_ramdisk_fragments) == 1:
+                fragment = vendor_image.vendor_ramdisk_fragments[0]
+                if fragment.ramdisk_type in (0, 1):
+                    extra = [fragment.root]
+            return init_roots + extra, {
+                "kind": "init_boot_generic_ramdisk",
+                "image": init_image.source.name,
+                "supplemental_images": (
+                    [vendor_image.source.name] if extra else []),
+                "warning": (
+                    "init_boot contains a generic ramdisk; it does not "
+                    "establish where the recovery image must be flashed"),
+            }
 
         if self.recovery_layout == "dedicated":
             if recovery_image is None or not recovery_image.ramdisk_roots:
@@ -271,19 +311,31 @@ class DeviceTree:
             }
 
         if self.recovery_layout == "boot":
-            if boot_image is None or not boot_image.ramdisk_roots:
+            if boot_image is None:
                 raise ValueError(
-                    "Recovery-as-boot was selected but boot.img has no ramdisk")
-            return list(boot_image.ramdisk_roots), {
+                    "Recovery-as-boot selected without a boot.img")
+            if not boot_image.ramdisk_roots:
+                if init_roots:
+                    return init_roots, {
+                        "kind": "init_boot_generic_ramdisk",
+                        "image": init_image.source.name,
+                        "warning": (
+                            "boot.img has no ramdisk. These init_boot generic "
+                            "files alone do not prove the recovery placement"),
+                    }
+                raise ValueError(
+                    "Recovery-as-boot selected, but boot.img has no ramdisk. "
+                    "Supply the matching init_boot.img and vendor_boot.img.")
+            return with_init_boot(boot_image.ramdisk_roots, {
                 "kind": "recovery_as_boot",
                 "image": boot_image.source.name,
-            }
+            })
 
         if self.recovery_layout != "vendor_boot":
             raise ValueError(
                 "No reliable recovery ramdisk was found. Supply recovery.img, "
-                "a vendor_boot RECOVERY fragment, or override a verified "
-                "--recovery-layout.")
+                "init_boot.img, a vendor_boot RECOVERY fragment, or override "
+                "a verified --recovery-layout.")
 
         if vendor_image is None:
             raise ValueError(
@@ -314,7 +366,7 @@ class DeviceTree:
                 raise ValueError(
                     "Typed RECOVERY fragments exist; select one of those "
                     "instead of a PLATFORM/NONE fragment")
-            return [selected.root], {
+            return with_init_boot([selected.root], {
                 "kind": (
                     "vendor_boot_recovery_fragment"
                     if selected.ramdisk_type == 2
@@ -324,18 +376,18 @@ class DeviceTree:
                 "fragment_name": selected.name,
                 "fragment_type": selected.type_name,
                 "board_id": list(selected.board_id),
-            }
+            })
 
         if len(typed) == 1:
             selected = typed[0]
-            return [selected.root], {
+            return with_init_boot([selected.root], {
                 "kind": "vendor_boot_recovery_fragment",
                 "image": vendor_image.source.name,
                 "fragment_index": selected.index,
                 "fragment_name": selected.name,
                 "fragment_type": selected.type_name,
                 "board_id": list(selected.board_id),
-            }
+            })
         if len(typed) > 1:
             choices = ", ".join(
                 f"{fragment.index}:{fragment.name or '(unnamed)'}"
@@ -355,19 +407,19 @@ class DeviceTree:
         ]
         if len(candidates) == 1:
             selected = candidates[0]
-            return [selected.root], {
+            return with_init_boot([selected.root], {
                 "kind": "vendor_boot_merged_recovery",
                 "image": vendor_image.source.name,
                 "fragment_index": selected.index,
                 "fragment_name": selected.name,
                 "fragment_type": selected.type_name,
                 "board_id": list(selected.board_id),
-            }
+            })
         if len(vendor_image.ramdisk_roots) == 1:
-            return list(vendor_image.ramdisk_roots), {
+            return with_init_boot(vendor_image.ramdisk_roots, {
                 "kind": "vendor_boot_merged_recovery",
                 "image": vendor_image.source.name,
-            }
+            })
         raise ValueError(
             "vendor_boot has no typed RECOVERY fragment and multiple possible "
             "vendor ramdisks. Automatic merging could select the wrong board "

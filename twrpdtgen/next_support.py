@@ -103,7 +103,7 @@ class NextOptions:
                 "auto", "omni", "twrp-12.1", "twrp-14.1"):
             raise ValueError("Unknown skeleton")
         if self.recovery_layout not in (
-                "auto", "dedicated", "boot", "vendor_boot"):
+                "auto", "dedicated", "boot", "vendor_boot", "init_boot"):
             raise ValueError("Unknown recovery layout")
         if self.recovery_root_mode not in (
                 "auto", "minimal", "full"):
@@ -219,6 +219,11 @@ def choose_recovery_layout(
     if requested != "auto":
         return requested
     stem = Path(filename).stem.lower()
+    if stem.endswith(("_a", "_b")):
+        stem = stem[:-2]
+    if stem == "init_boot":
+        # Extraction source only: not evidence that TWRP lives in init_boot.
+        return "init_boot"
     if stem == "recovery":
         return "dedicated"
     if stem == "vendor_boot":

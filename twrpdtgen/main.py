@@ -105,7 +105,8 @@ def main():
             "auto",
             "dedicated",
             "boot",
-            "vendor_boot"),
+            "vendor_boot",
+            "init_boot"),
         default="auto",
         help=(
             "override detected recovery storage location"))

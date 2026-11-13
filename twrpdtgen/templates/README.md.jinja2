@@ -9,11 +9,21 @@ verified bootable recovery or a flashable image.**
 - Product: **{{ product_prefix }}_{{ device_info.codename }}**
 - Build tree location: **device/{{ device_info.manufacturer }}/{{ device_info.codename }}**
 - Recovery ramdisk source: **{{ recovery_source.kind }}** from **{{ recovery_source.image }}**
+{% if recovery_source.supplemental_images %}
+- Supplemental ramdisk image(s): **{{ recovery_source.supplemental_images | join(', ') }}**
+{% endif %}
+{% if recovery_source.kind == "init_boot_generic_ramdisk" %}
+- **Important:** init_boot is a *generic ramdisk extraction source*, not
+  proof of recovery location. Do not flash a TWRP build to init_boot based
+  on this tree alone. Supply matching boot/vendor_boot, verify stock
+  recovery placement, and check the target build flags first.
+{% endif %}
 - Recovery/root policy: **{{ recovery_root_mode }}**
 
 ## Extracted recovery ramdisk
 
-The selected stock recovery payload is extracted once and reused directly.
+The selected stock recovery or generic init_boot payload is extracted once
+and reused directly. Generic init_boot content alone is not complete recovery.
 
 - **recovery/stock-root/** contains the complete expanded selected recovery
   payload in the generation workspace for audit and for recovering extra device
