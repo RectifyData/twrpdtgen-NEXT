@@ -19,10 +19,11 @@ from twrpdtgen.next_support import (
 def _add_image_arguments(parser):
     parser.add_argument(
         "image",
+        nargs="?",
         type=Path,
         help=(
-            "primary recovery, boot, init_boot, "
-            "or vendor_boot image"))
+            "primary recovery/boot image; omit for Easy Mode, or pass a "
+            "folder/ZIP to auto-discover standard Android images"))
     parser.add_argument(
         "--boot-image",
         type=Path,
@@ -154,6 +155,49 @@ def main():
         action="store_true")
     args = parser.parse_args()
     setup_logging(args.debug)
+
+    if args.image is None:
+        from twrpdtgen.easy import main as easy_main
+        return easy_main([])
+
+    from twrpdtgen.easy import SUPPORTED_IMAGE_NAMES
+    easy_input = (
+        args.image.is_dir()
+        or args.image.suffix.lower() == ".zip"
+        or args.image.name.lower() in SUPPORTED_IMAGE_NAMES
+    )
+    if (
+            easy_input
+            and not args.extract_only
+            and not args.extract_to
+            and args.boot_image is None
+            and args.vendor_boot is None
+            and args.init_boot is None
+            and args.recovery_fragment is None
+            and args.boot_size is None
+            and args.recovery_size is None
+            and args.super_size is None
+            and args.dynamic_group_size is None
+            and not args.git):
+        from twrpdtgen.easy import generate_easy
+        try:
+            _, folder, bundle = generate_easy(
+                args.image,
+                tree_output=args.output,
+                skeleton=args.skeleton,
+                recovery_layout=args.recovery_layout,
+                recovery_root_mode=args.recovery_root_mode,
+                overwrite=args.overwrite,
+            )
+        except Exception as exc:
+            parser.error(str(exc))
+        print(f"\nGenerated candidate tree at {folder}")
+        print(f"Portable ZIP: {bundle}")
+        print(
+            "Build and validate the generated tree for the target device "
+            "before flashing."
+        )
+        return
 
     if args.extract_only:
         _extract_only(args)

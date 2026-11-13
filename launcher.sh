@@ -124,7 +124,15 @@ main() {
         --doctor) doctor; return 0 ;;
         --self-test) self_test; return 0 ;;
         --setup-only) doctor; show_ready; return 0 ;;
-        "") doctor; show_ready; return 0 ;;
+        "")
+            doctor
+            if is_colab || [[ ! -t 0 ]]; then
+                show_ready
+                return 0
+            fi
+            export PYTHONPATH="$ROOT_DIR${PYTHONPATH:+:$PYTHONPATH}"
+            exec "$PYTHON_BIN" -m twrpdtgen
+            ;;
     esac
     export PYTHONPATH="$ROOT_DIR${PYTHONPATH:+:$PYTHONPATH}"
     exec "$PYTHON_BIN" -m twrpdtgen "$@"
