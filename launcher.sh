@@ -45,14 +45,14 @@ install_system_dependencies() {
         apt=(sudo apt-get)
     fi
     log "Installing missing system tools: ${missing[*]}"
-    "${apt[@]}" update -qq
-    DEBIAN_FRONTEND=noninteractive "${apt[@]}" install -y -qq --no-install-recommends "${missing[@]}"
+    "${apt[@]}" update
+    "${apt[@]}" install -y --no-install-recommends "${missing[@]}"
 }
 
 install_python_dependencies() {
     [[ "${TWRPDTGEN_SKIP_PIP:-0}" == "1" ]] && return 0
     log "Installing twrpdtgen-NEXT from this clone..."
-    PIP_DISABLE_PIP_VERSION_CHECK=1 "$PYTHON_BIN" -m pip install -q -e "$ROOT_DIR"
+    PIP_DISABLE_PIP_VERSION_CHECK=1 "$PYTHON_BIN" -m pip install -e "$ROOT_DIR"
 }
 
 doctor() {
@@ -110,6 +110,8 @@ Launcher commands:
   bash launcher.sh --self-test
   bash launcher.sh --setup-only
 
+GUI: ./launcher.sh --gui [--source IMAGE]
+CLI: ./launcher.sh --cli [IMAGE and options]
 All other arguments are passed directly to python3 -m twrpdtgen.
 The -o/--output directory does not need to exist beforehand.
 EOF
@@ -121,6 +123,16 @@ main() {
     install_system_dependencies
     install_python_dependencies
     case "${1:-}" in
+        --gui)
+            shift
+            export PYTHONPATH="$ROOT_DIR${PYTHONPATH:+:$PYTHONPATH}"
+            exec "$PYTHON_BIN" -m twrpdtgen.gui "$@"
+            ;;
+        --cli)
+            shift
+            export PYTHONPATH="$ROOT_DIR${PYTHONPATH:+:$PYTHONPATH}"
+            exec "$PYTHON_BIN" -m twrpdtgen "$@" --cli
+            ;;
         --doctor) doctor; return 0 ;;
         --self-test) self_test; return 0 ;;
         --setup-only) doctor; show_ready; return 0 ;;
@@ -131,7 +143,10 @@ main() {
                 return 0
             fi
             export PYTHONPATH="$ROOT_DIR${PYTHONPATH:+:$PYTHONPATH}"
-            exec "$PYTHON_BIN" -m twrpdtgen
+            if [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; then
+                exec "$PYTHON_BIN" -m twrpdtgen.gui
+            fi
+            exec "$PYTHON_BIN" -m twrpdtgen.easy
             ;;
     esac
     export PYTHONPATH="$ROOT_DIR${PYTHONPATH:+:$PYTHONPATH}"

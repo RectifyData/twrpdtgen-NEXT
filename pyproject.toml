@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "twrpdtgen"
-version = "3.1.0a19"
+version = "3.1.0a20"
 description = "Generate conservative TWRP device-tree skeletons from legacy and modern Android boot images"
 authors = ["Sebastiano Barezzi <barezzisebastiano@gmail.com>", "twrpdtgen-NEXT contributors"]
 license = "Apache-2.0"
@@ -9,6 +9,8 @@ repository = "https://github.com/RectifyData/twrpdtgen-NEXT"
 
 [tool.poetry.scripts]
 twrpdtgen = 'twrpdtgen.main:main'
+twrpdtgen-cli = 'twrpdtgen.main:main_cli'
+twrpdtgen-gui = 'twrpdtgen.gui:main'
 twrpdtgen-cloud-slice = 'twrpdtgen.cloud_slice:main'
 twrpdtgen-cloud-tree = 'twrpdtgen.cloud_tree:main'
 twrpdtgen-easy = 'twrpdtgen.easy:main'

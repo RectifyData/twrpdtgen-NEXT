@@ -13,16 +13,37 @@ device-tree skeletons from classic and split Android boot images.
 - Run `python3 -m twrpdtgen --help` (or the equivalent through a launcher) for
   the current generator CLI arguments.
 
+## Desktop GUI and independent CLI
+
+Windows and Linux now have a full Tk GUI with file/folder and companion-image
+pickers, recovery layout, TWRP profile and ramdisk settings, partition size
+fields, ZIP output, live logs and a floating Tools menu. The GUI runs locally
+and **never flashes a device**.
+
+Windows: double-click `launcher.cmd`. Linux desktop: `./launcher.sh`.
+Installed: `twrpdtgen-gui`.
+
+The independent command line remains available without a desktop:
+
+```bash
+twrpdtgen-cli recovery.img -o output
+python3 -m twrpdtgen recovery.img -o output
+twrpdtgen-gui --source recovery.img
+```
+
+The GUI requires Python tkinter and a graphical desktop. Android Termux
+can use the CLI; Tk needs a working X11 environment on Android.
+
 ## Easy Mode — recommended standalone use
 
 For normal use, you should not need to remember commands or type image names.
 
-**Windows:** double-click `launcher.cmd`. NEXT opens a native picker. Choose a
+**Windows:** double-click `launcher.cmd`. NEXT opens its full GUI. Choose a
 recovery/boot `.img`, a ZIP containing Android images, or cancel the file
 picker to choose a folder. You can also drag an image, ZIP, or folder directly
 onto `launcher.cmd`.
 
-**Linux/desktop:** run `./launcher.sh` with no arguments. NEXT opens a picker
+**Linux/desktop:** run `./launcher.sh` with no arguments. NEXT opens its full GUI
 when a graphical desktop is available, or gives a drag-and-drop path prompt in
 a terminal.
 

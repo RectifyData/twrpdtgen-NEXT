@@ -9,13 +9,29 @@ platforms where they run:
 Both launchers bootstrap the dependencies they need and then forward normal
 arguments to `python -m twrpdtgen`.
 
+## GUI and CLI entry points
+
+Windows GUI: `launcher.cmd` or `launcher.cmd --gui`.
+Linux GUI: `./launcher.sh --gui` (or no args on a graphical desktop).
+Installed GUI: `twrpdtgen-gui --source recovery.img`.
+
+The GUI supports image/companion selection, tree + ZIP or component extraction,
+recovery/ramdisk options, verified partition sizes, visible logs, safe unique
+ZIP filenames, Open Output and floating Tools menus.
+
+CLI is still independent:
+`twrpdtgen-cli IMAGE -o OUTPUT [OPTIONS]`, or
+`python -m twrpdtgen IMAGE -o OUTPUT [OPTIONS]`.
+Windows `launcher.cmd IMAGE -o OUTPUT` uses CLI; `launcher.cmd --cli`
+opens terminal help. GUI cannot prove that a TWRP image is flash-safe.
+
 ## Easiest standalone use
 
 For the common path, do not type the long commands shown later in this guide.
 
 ### Windows
 
-Double-click `launcher.cmd`. NEXT opens a native picker. Choose:
+Double-click `launcher.cmd`. NEXT opens the graphical application. Choose:
 
 - a recovery/boot `.img`;
 - a Samsung/Odin-style `.img.lz4`;
@@ -407,9 +423,8 @@ This installs/checks dependencies and prints the ready-to-use examples.
 
 ### Run with no arguments
 
-On a normal local machine, running the launcher with no arguments enters Easy
-Mode. Windows opens the native picker; Linux uses a graphical picker when
-available and otherwise a terminal drag/drop prompt.
+Local Windows and graphical Linux launchers open the GUI with no arguments.
+Headless Linux enters terminal Easy Mode; Colab retains setup/usage output.
 
 Google Colab and non-interactive Linux invocations keep the setup/usage output
 behavior instead of waiting for local user input.

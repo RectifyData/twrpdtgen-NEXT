@@ -1,0 +1,630 @@
+# SPDX-License-Identifier: Apache-2.0
+"""Desktop GUI for twrpdtgen-NEXT; CLI continues to work independently.
+
+Tk is imported only when a GUI is actually launched, so CLI, Termux,
+Colab, and headless CI do not require an X server or tkinter.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+import argparse
+import os
+import queue
+import subprocess
+import sys
+import threading
+from typing import Callable, Optional
+
+from twrpdtgen import __version__
+
+
+@dataclass(frozen=True)
+class GUIJob:
+    source: Path
+    output: Path
+    mode: str = "tree"
+    archive: Optional[Path] = None
+    boot_image: Optional[Path] = None
+    vendor_boot: Optional[Path] = None
+    init_boot: Optional[Path] = None
+    skeleton: str = "auto"
+    recovery_layout: str = "auto"
+    recovery_root_mode: str = "auto"
+    recovery_fragment: Optional[str] = None
+    boot_size: Optional[int] = None
+    recovery_size: Optional[int] = None
+    super_size: Optional[int] = None
+    dynamic_group_size: Optional[int] = None
+    include_stock_root: bool = False
+    overwrite: bool = False
+
+    def validate(self):
+        from twrpdtgen.next_support import NextOptions
+
+        if self.mode not in ("tree", "extract"):
+            raise ValueError("Choose Generate tree or Extract components")
+        if not self.source.exists():
+            raise FileNotFoundError("Input does not exist: {}".format(self.source))
+        if not (self.source.is_file() or self.source.is_dir()):
+            raise ValueError("Input must be a file or folder")
+        if self.output.exists() and not self.output.is_dir():
+            raise ValueError("Output location is not a directory")
+        if self.archive is not None and self.archive.exists() and self.archive.is_dir():
+            raise ValueError("ZIP output path must be a file, not a folder")
+        for name in ("boot_image", "vendor_boot", "init_boot"):
+            path = getattr(self, name)
+            if path is not None and not path.is_file():
+                raise FileNotFoundError(
+                    "{} is not an existing image file: {}".format(name, path))
+        if self.recovery_fragment and self.recovery_layout == "init_boot":
+            raise ValueError(
+                "A vendor_boot fragment cannot be selected with init_boot-only layout")
+        NextOptions(
+            skeleton=self.skeleton,
+            recovery_layout=self.recovery_layout,
+            recovery_root_mode=self.recovery_root_mode,
+            boot_size=self.boot_size,
+            recovery_size=self.recovery_size,
+            super_size=self.super_size,
+            dynamic_group_size=self.dynamic_group_size,
+            overwrite=self.overwrite,
+        )
+
+
+@dataclass(frozen=True)
+class GUIResult:
+    tree: Optional[Path] = None
+    archive: Optional[Path] = None
+    extracted: Optional[Path] = None
+
+
+def _optional_image(value: str) -> Optional[Path]:
+    return Path(value.strip()).expanduser() if value.strip() else None
+
+
+def parse_job(values: dict) -> GUIJob:
+    """Convert form text to a validated job; shared by GUI and tests."""
+    from twrpdtgen.next_support import parse_partition_size
+
+    def size(name):
+        raw = values.get(name, "").strip()
+        return parse_partition_size(raw) if raw else None
+
+    source = values.get("source", "").strip()
+    if not source:
+        raise ValueError("Choose a source image, archive, or folder first")
+    output = values.get("output", "").strip()
+    if not output:
+        raise ValueError("Choose a destination folder")
+    job = GUIJob(
+        source=Path(source).expanduser(),
+        output=Path(output).expanduser(),
+        mode=values.get("mode", "tree"),
+        archive=_optional_image(values.get("archive", "")),
+        boot_image=_optional_image(values.get("boot_image", "")),
+        vendor_boot=_optional_image(values.get("vendor_boot", "")),
+        init_boot=_optional_image(values.get("init_boot", "")),
+        skeleton=values.get("skeleton", "auto"),
+        recovery_layout=values.get("recovery_layout", "auto"),
+        recovery_root_mode=values.get("recovery_root_mode", "auto"),
+        recovery_fragment=values.get("recovery_fragment", "").strip() or None,
+        boot_size=size("boot_size"),
+        recovery_size=size("recovery_size"),
+        super_size=size("super_size"),
+        dynamic_group_size=size("dynamic_group_size"),
+        include_stock_root=bool(values.get("include_stock_root")),
+        overwrite=bool(values.get("overwrite")),
+    )
+    job.validate()
+    return job
+
+
+def _selection(source: Path):
+    """Stage accepted input using Easy Mode; keep the chosen image primary."""
+    from twrpdtgen.easy import prepared_input
+    return prepared_input(source)
+
+
+def run_job(job: GUIJob, report: Callable[[str], None] = print) -> GUIResult:
+    """Execute without tkinter; never flash or modify an Android device."""
+    from twrpdtgen.auto_tree import discover_images
+    from twrpdtgen.boot_image import ModernImageManager
+    from twrpdtgen.easy import _unique_path
+    from twrpdtgen.next_support import NextOptions
+    from twrpdtgen.tree_archive import archive_tree
+
+    job.validate()
+    report("Preparing selected image(s)...")
+    with _selection(job.source) as (input_dir, explicit):
+        try:
+            discovered = discover_images(input_dir)
+        except ValueError:
+            if explicit is None:
+                raise
+            discovered = None
+
+        primary = explicit or discovered.primary
+        companions = {}
+        for kind, manually_selected in (
+                ("boot", job.boot_image),
+                ("vendor_boot", job.vendor_boot),
+                ("init_boot", job.init_boot)):
+            automatic = getattr(discovered, kind, None) if discovered else None
+            candidate = manually_selected or automatic
+            if candidate is not None and (
+                    candidate.resolve() == primary.resolve()):
+                candidate = None
+            # Prevent accidentally mixing a primary image with another image
+            # claiming the same role.
+            if (
+                    manually_selected is not None
+                    and primary.stem.lower().rstrip("_ab") == kind
+                    and manually_selected.resolve() != primary.resolve()):
+                raise ValueError(
+                    "The primary image and selected {} companion conflict".format(kind))
+            companions[kind] = candidate
+
+        report("Primary image: {}".format(primary.name))
+        for kind, path in companions.items():
+            if path:
+                report("Companion {}: {}".format(kind, path.name))
+
+        if job.mode == "extract":
+            target = _unique_path(job.output / "extracted-images")
+            report("Extracting modern image components...")
+            manager = ModernImageManager(
+                primary,
+                boot_image=companions["boot"],
+                vendor_boot=companions["vendor_boot"],
+                init_boot=companions["init_boot"],
+            )
+            try:
+                manager.unpack()
+                extracted = manager.export(target)
+            finally:
+                manager.cleanup()
+            report("Components saved to {}".format(extracted))
+            return GUIResult(extracted=extracted)
+
+        from twrpdtgen.device_tree import DeviceTree
+
+        options = NextOptions(
+            skeleton=job.skeleton,
+            recovery_layout=job.recovery_layout,
+            recovery_root_mode=job.recovery_root_mode,
+            boot_size=job.boot_size,
+            recovery_size=job.recovery_size,
+            super_size=job.super_size,
+            dynamic_group_size=job.dynamic_group_size,
+            overwrite=job.overwrite,
+        )
+        report("Parsing stock recovery and building candidate source tree...")
+        generator = DeviceTree(
+            image=primary,
+            options=options,
+            boot_image=companions["boot"],
+            vendor_boot=companions["vendor_boot"],
+            init_boot=companions["init_boot"],
+            recovery_fragment=job.recovery_fragment,
+        )
+        try:
+            tree = generator.dump_to_folder(job.output, git=False)
+        finally:
+            generator.cleanup()
+        report("Creating portable ZIP (ZIP64 and symlinks supported)...")
+        archive = job.archive or job.output / "twrp-device-tree.zip"
+        if archive.suffix.lower() != ".zip":
+            archive = archive.with_suffix(".zip")
+        # Never erase an existing ZIP even if replacing a tree was selected.
+        archive = _unique_path(archive)
+        bundle = archive_tree(
+            tree, archive, include_stock_root=job.include_stock_root)
+        report("Tree: {}".format(tree))
+        report("ZIP: {}".format(bundle))
+        report("Generated source is NOT verified bootable or safe to flash.")
+        return GUIResult(tree=tree, archive=bundle)
+
+
+def can_launch_gui() -> bool:
+    """Cheap availability check that does not create a window."""
+    if sys.platform != "win32" and not (
+            os.environ.get("DISPLAY")
+            or os.environ.get("WAYLAND_DISPLAY")):
+        return False
+    try:
+        import tkinter
+    except ImportError:
+        return False
+    return True
+
+
+def open_folder(path: Path) -> None:
+    path = Path(path)
+    if path.is_file():
+        path = path.parent
+    if not path.is_dir():
+        raise FileNotFoundError(path)
+    if sys.platform == "win32":
+        os.startfile(str(path))
+    elif sys.platform == "darwin":
+        subprocess.Popen(["open", str(path)])
+    else:
+        subprocess.Popen(["xdg-open", str(path)])
+
+
+class NextWindow:
+    """Scrollable Tk/ttk window with a floating Tools menu and live logs."""
+
+    def __init__(self, root, initial_source=None, initial_output=None):
+        import tkinter as tk
+        from tkinter import ttk
+        from tkinter.scrolledtext import ScrolledText
+
+        self.tk = tk
+        self.ttk = ttk
+        self.root = root
+        self.events = queue.Queue()
+        self.busy = False
+        self.result = None
+        root.title("twrpdtgen-NEXT  {}  |  Recovery tree studio".format(__version__))
+        root.geometry("980x820")
+        root.minsize(650, 560)
+        root.protocol("WM_DELETE_WINDOW", self._close)
+
+        style = ttk.Style(root)
+        if "clam" in style.theme_names():
+            style.theme_use("clam")
+        style.configure("Header.TLabel", font=("Arial", 18, "bold"))
+        style.configure("Action.TButton", padding=(18, 9))
+        style.configure("Section.TLabelframe", padding=(12, 8))
+
+        self.fields = {}
+        self.flags = {
+            "overwrite": tk.BooleanVar(value=False),
+            "include_stock_root": tk.BooleanVar(value=False),
+        }
+        start_dir = str(Path.home() / "TWRP-Trees")
+        defaults = {
+            "source": str(initial_source or ""),
+            "output": str(initial_output or start_dir),
+            "archive": "",
+            "mode": "tree",
+            "boot_image": "",
+            "vendor_boot": "",
+            "init_boot": "",
+            "skeleton": "auto",
+            "recovery_layout": "auto",
+            "recovery_root_mode": "auto",
+            "recovery_fragment": "",
+            "boot_size": "",
+            "recovery_size": "",
+            "super_size": "",
+            "dynamic_group_size": "",
+        }
+        for name, value in defaults.items():
+            self.fields[name] = tk.StringVar(value=value)
+
+        header = ttk.Frame(root, padding=(15, 12))
+        header.pack(fill="x")
+        ttk.Label(
+            header, text="Recovery Tree Studio", style="Header.TLabel"
+        ).pack(side="left")
+        self.tools_button = ttk.Menubutton(header, text="Tools  ⋮")
+        self.tools_button.pack(side="right")
+        menu = tk.Menu(self.tools_button, tearoff=False)
+        menu.add_command(label="Open output folder", command=self._open_output)
+        menu.add_command(label="Copy logs", command=self._copy_logs)
+        menu.add_separator()
+        menu.add_command(label="About and safety", command=self._about)
+        self.tools_button["menu"] = menu
+
+        # The editor scrolls independently from the log panel, so it remains
+        # usable on smaller desktop displays and external phone screens.
+        body_wrap = ttk.Frame(root, padding=(12, 0))
+        body_wrap.pack(fill="both", expand=True)
+        canvas = tk.Canvas(body_wrap, highlightthickness=0)
+        scroll = ttk.Scrollbar(body_wrap, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=scroll.set)
+        scroll.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
+        body = ttk.Frame(canvas)
+        anchor = canvas.create_window((0, 0), window=body, anchor="nw")
+        body.bind("<Configure>", lambda event: canvas.configure(
+            scrollregion=canvas.bbox("all")))
+        canvas.bind("<Configure>", lambda event: canvas.itemconfigure(
+            anchor, width=event.width))
+        canvas.bind("<Enter>", lambda event: canvas.bind_all(
+            "<MouseWheel>", lambda e: canvas.yview_scroll(
+                int(-e.delta / 120), "units")))
+        canvas.bind("<Leave>", lambda event: canvas.unbind_all("<MouseWheel>"))
+
+        source = ttk.LabelFrame(body, text="1  ·  Firmware source", style="Section.TLabelframe")
+        source.pack(fill="x", padx=4, pady=(4, 8))
+        self._path_row(source, "source", "Image / archive / folder",
+                       pick="source")
+        ttk.Label(
+            source,
+            text="Choose .img, .img.lz4, ZIP, TAR/TAR.MD5 or a folder. Matching companions are auto-detected.",
+            wraplength=760,
+        ).grid(row=1, column=0, columnspan=4, sticky="w", pady=(2, 6))
+
+        extra = ttk.LabelFrame(body, text="Optional companion images", style="Section.TLabelframe")
+        extra.pack(fill="x", padx=4, pady=8)
+        for role, label in (
+                ("boot_image", "boot.img"),
+                ("vendor_boot", "vendor_boot.img"),
+                ("init_boot", "init_boot.img")):
+            self._path_row(extra, role, label, pick="file")
+
+        output = ttk.LabelFrame(body, text="2  ·  Outputs", style="Section.TLabelframe")
+        output.pack(fill="x", padx=4, pady=8)
+        self._path_row(output, "output", "Destination directory", pick="folder")
+        self._path_row(output, "archive", "ZIP path (optional)", pick="save")
+        ttk.Label(output, text="A unique ZIP filename is chosen automatically to protect existing files.").grid(
+            row=2, column=0, columnspan=3, sticky="w", pady=(1, 5))
+        mode_row = ttk.Frame(output)
+        mode_row.grid(row=3, column=0, columnspan=4, sticky="w")
+        ttk.Radiobutton(
+            mode_row, text="Generate TWRP tree + ZIP", variable=self.fields["mode"],
+            value="tree").pack(side="left", padx=(0, 16))
+        ttk.Radiobutton(
+            mode_row, text="Extract parsed image components only",
+            variable=self.fields["mode"], value="extract").pack(side="left")
+
+        advanced = ttk.LabelFrame(body, text="3  ·  Generator settings", style="Section.TLabelframe")
+        advanced.pack(fill="x", padx=4, pady=8)
+        for row, (key, label, choices) in enumerate((
+                ("skeleton", "TWRP profile", ("auto", "omni", "twrp-12.1", "twrp-14.1")),
+                ("recovery_layout", "Recovery source", ("auto", "dedicated", "boot", "vendor_boot", "init_boot")),
+                ("recovery_root_mode", "Ramdisk overlay", ("auto", "minimal", "full")))):
+            ttk.Label(advanced, text=label, width=23).grid(
+                row=row, column=0, sticky="w", pady=4)
+            ttk.Combobox(
+                advanced, state="readonly", width=26,
+                textvariable=self.fields[key], values=choices
+            ).grid(row=row, column=1, sticky="w", pady=4)
+        ttk.Label(advanced, text="Vendor recovery fragment").grid(
+            row=3, column=0, sticky="w")
+        ttk.Entry(
+            advanced, textvariable=self.fields["recovery_fragment"], width=29
+        ).grid(row=3, column=1, sticky="w", pady=4)
+        ttk.Label(
+            advanced, text="Only choose a vendor fragment if you verified its identity.",
+            wraplength=530).grid(row=4, column=0, columnspan=3, sticky="w")
+
+        geometry = ttk.LabelFrame(body, text="Optional verified partition sizes", style="Section.TLabelframe")
+        geometry.pack(fill="x", padx=4, pady=8)
+        for row, (name, label) in enumerate((
+                ("boot_size", "Boot"), ("recovery_size", "Recovery"),
+                ("super_size", "Super"), ("dynamic_group_size", "Dynamic group"))):
+            col = row % 2
+            rr = row // 2
+            ttk.Label(geometry, text=label, width=16).grid(
+                row=rr, column=col * 2, sticky="w", padx=(4, 0), pady=4)
+            ttk.Entry(
+                geometry, textvariable=self.fields[name], width=16
+            ).grid(row=rr, column=col * 2 + 1, sticky="w", padx=4, pady=4)
+        ttk.Label(
+            geometry, text="Leave blank to use source-image length estimates; these do NOT prove physical capacity.",
+            wraplength=760).grid(row=2, column=0, columnspan=4, sticky="w")
+
+        checks = ttk.Frame(body)
+        checks.pack(fill="x", padx=8, pady=(4, 8))
+        ttk.Checkbutton(
+            checks, text="Replace an existing device tree (requires confirmation)",
+            variable=self.flags["overwrite"]).pack(anchor="w")
+        ttk.Checkbutton(
+            checks, text="Include stock-root in ZIP (larger archive)",
+            variable=self.flags["include_stock_root"]).pack(anchor="w")
+        ttk.Label(
+            checks, text="Safety: Generated source is not validated for booting or flashing.",
+            wraplength=760).pack(anchor="w", pady=(6, 0))
+
+        footer = ttk.Frame(root, padding=(14, 7))
+        footer.pack(fill="x", side="bottom")
+        actions = ttk.Frame(footer)
+        actions.pack(fill="x")
+        self.go = ttk.Button(
+            actions, text="Generate / Extract", style="Action.TButton",
+            command=self._start)
+        self.go.pack(side="left")
+        ttk.Button(
+            actions, text="Open output", command=self._open_output
+        ).pack(side="left", padx=10)
+        self.progress = ttk.Progressbar(actions, mode="indeterminate")
+        self.progress.pack(side="right", fill="x", expand=True, padx=(20, 0))
+        self.status = tk.StringVar(value="Ready")
+        ttk.Label(footer, textvariable=self.status).pack(fill="x", pady=(5, 4))
+        self.log = ScrolledText(
+            footer, height=7, wrap="word", font=("Consolas", 9),
+            state="disabled")
+        self.log.pack(fill="both")
+        self._message("Select firmware source, then Generate / Extract.")
+
+    def _path_row(self, parent, name, label, pick):
+        row = int(parent.grid_size()[1])
+        parent.grid_columnconfigure(1, weight=1)
+        self.ttk.Label(parent, text=label, width=23).grid(
+            row=row, column=0, sticky="w", padx=(1, 6), pady=3)
+        self.ttk.Entry(parent, textvariable=self.fields[name]).grid(
+            row=row, column=1, sticky="ew", padx=4, pady=3)
+        if pick == "source":
+            self.ttk.Button(
+                parent, text="File…", command=lambda: self._pick_file(name)
+            ).grid(row=row, column=2, padx=3)
+            self.ttk.Button(
+                parent, text="Folder…", command=lambda: self._pick_dir(name)
+            ).grid(row=row, column=3, padx=3)
+        else:
+            self.ttk.Button(
+                parent, text="Browse…",
+                command=lambda: (
+                    self._pick_dir(name) if pick == "folder"
+                    else self._pick_save(name) if pick == "save"
+                    else self._pick_file(name))
+            ).grid(row=row, column=2, padx=3)
+
+    def _pick_file(self, name):
+        from tkinter import filedialog
+        value = filedialog.askopenfilename(
+            parent=self.root,
+            title="Select Android image / firmware" if name == "source"
+            else "Select companion image")
+        if value:
+            self.fields[name].set(value)
+
+    def _pick_dir(self, name):
+        from tkinter import filedialog
+        value = filedialog.askdirectory(
+            parent=self.root, title="Choose directory", mustexist=True)
+        if value:
+            self.fields[name].set(value)
+
+    def _pick_save(self, name):
+        from tkinter import filedialog
+        value = filedialog.asksaveasfilename(
+            parent=self.root, title="Choose ZIP destination",
+            defaultextension=".zip", filetypes=[("ZIP archive", "*.zip")])
+        if value:
+            self.fields[name].set(value)
+
+    def _message(self, message):
+        self.log.configure(state="normal")
+        self.log.insert("end", str(message).rstrip() + "\n")
+        self.log.see("end")
+        self.log.configure(state="disabled")
+
+    def _copy_logs(self):
+        self.root.clipboard_clear()
+        self.root.clipboard_append(self.log.get("1.0", "end-1c"))
+
+    def _open_output(self):
+        from tkinter import messagebox
+        try:
+            selected = self.result.tree or self.result.extracted if self.result else None
+            path = selected if selected else Path(self.fields["output"].get()).expanduser()
+            open_folder(path)
+        except Exception as exc:
+            messagebox.showerror("Cannot open output", str(exc), parent=self.root)
+
+    def _about(self):
+        from tkinter import messagebox
+        messagebox.showinfo(
+            "About twrpdtgen-NEXT",
+            "twrpdtgen-NEXT {}\n\nGUI and CLI share the same parser.\n"
+            "TWRP trees are candidate source, not flashable images.\n"
+            "Verify AVB, encryption, partition geometry and recovery "
+            "boot behavior on the target device.".format(__version__),
+            parent=self.root)
+
+    def _form(self):
+        result = {name: variable.get() for name, variable in self.fields.items()}
+        result.update({name: bool(variable.get()) for name, variable in self.flags.items()})
+        return result
+
+    def _start(self):
+        from tkinter import messagebox
+        if self.busy:
+            return
+        try:
+            job = parse_job(self._form())
+        except Exception as exc:
+            messagebox.showerror("Check the inputs", str(exc), parent=self.root)
+            return
+        if job.overwrite and not messagebox.askyesno(
+                "Replace existing tree?",
+                "The existing generated device tree could be deleted and "
+                "recreated. Continue?", parent=self.root):
+            return
+        self.busy = True
+        self.result = None
+        self.go.configure(state="disabled")
+        self.progress.start(14)
+        self.status.set("Working — see log below")
+        self._message("")
+        self._message("Starting {}...".format(job.mode))
+        worker = threading.Thread(
+            target=self._work, args=(job,), daemon=True)
+        worker.start()
+        self.root.after(100, self._poll)
+
+    def _work(self, job):
+        try:
+            result = run_job(
+                job, report=lambda message: self.events.put(("log", message)))
+            self.events.put(("done", result))
+        except Exception as exc:
+            self.events.put(("error", "{}: {}".format(type(exc).__name__, exc)))
+
+    def _poll(self):
+        from tkinter import messagebox
+        try:
+            while True:
+                kind, value = self.events.get_nowait()
+                if kind == "log":
+                    self._message(value)
+                    self.status.set(str(value))
+                else:
+                    self.busy = False
+                    self.progress.stop()
+                    self.go.configure(state="normal")
+                    if kind == "done":
+                        self.result = value
+                        self.status.set("Completed — source generated; flash safety not verified")
+                        self._message("Completed successfully.")
+                        messagebox.showinfo(
+                            "Finished", "Files were written successfully.\n"
+                            "Recovery bootability and flash safety remain unverified.",
+                            parent=self.root)
+                    else:
+                        self.status.set("Failed — check the log")
+                        self._message("ERROR: " + str(value))
+                        messagebox.showerror("Generation failed", str(value), parent=self.root)
+        except queue.Empty:
+            pass
+        if self.busy:
+            self.root.after(100, self._poll)
+
+    def _close(self):
+        from tkinter import messagebox
+        if self.busy:
+            messagebox.showwarning(
+                "Generation in progress",
+                "Finish the current operation before closing the window.",
+                parent=self.root)
+        else:
+            self.root.destroy()
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(
+        prog="twrpdtgen-gui",
+        description="Graphical twrpdtgen-NEXT image / TWRP tree generator")
+    parser.add_argument('input', nargs='?', type=Path,
+                        help='optional source image/folder')
+    parser.add_argument('--gui', action='store_true', help=argparse.SUPPRESS)
+    parser.add_argument(
+        "--source", type=Path,
+        help="prefill the firmware source image/archive/folder")
+    parser.add_argument(
+        "--output", type=Path,
+        help="prefill the generated tree destination")
+    args = parser.parse_args(argv)
+    if not can_launch_gui():
+        parser.exit(
+            2, "GUI unavailable. Install Tk and start a graphical desktop, "
+            "or use twrpdtgen-cli (or launcher.cmd --cli).\n")
+    import tkinter as tk
+    try:
+        root = tk.Tk()
+    except tk.TclError as exc:
+        parser.exit(
+            2, "Could not open a desktop window: {}. Use twrpdtgen-cli.\n".format(exc))
+    NextWindow(root, args.source or args.input, args.output)
+    root.mainloop()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

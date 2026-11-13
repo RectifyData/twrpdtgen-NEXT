@@ -1,18 +1,17 @@
-# twrpdtgen-NEXT 3.1.0a19 — init_boot resource extraction
+# twrpdtgen-NEXT 3.1.0a20 — desktop GUI + independent CLI
 
-This is a source-only prerelease adding init_boot support for devices without
-dedicated recovery partitions.
+Source-only preview release.
 
-- Auto or explicit --recovery-layout init_boot selects generic init_boot
-  resources when no dedicated/known recovery source exists.
-- Split GKI recovery trees now preserve init_boot generic ramdisk resources
-  beneath an unambiguous vendor_boot RECOVERY fragment.
-- boot.img with no ramdisk may fall back to matching init_boot generic resources.
-- Recognizes slot-suffixed recovery_a/b and init_boot_a/b image files.
-- Adds regression coverage for layout detection, fallback, source merging,
-  and proper attribution of generic vs recovery ramdisks.
+- Full native Tk GUI: image, archive and folder pickers; optional
+  boot/vendor_boot/init_boot companion files; TWRP profile and recovery layout
+  controls; partition-size fields; ZIP export; extraction-only mode.
+- Live stage messages, visible progress indicator, Open Output,
+  floating Tools menu, and overwrite confirmation.
+- Separate twrpdtgen-gui and twrpdtgen-cli commands.
+- Windows/Linux desktop defaults to GUI; existing CLI and headless Colab
+  workflows are retained. Windows launcher no longer references a missing label.
+- Headless GUI-backend tests. Bootstrap installation output is visible.
 
-Generic init_boot does NOT establish where a flashable TWRP image belongs.
-An init_boot-only tree requires usable device properties and a stock fstab.
-Build success, flash safety, AVB, encryption and actual bootability require
-physical device-specific verification.
+Source-tree generation is not proof of bootability or flash safety. Verify
+partition capacity, actual recovery placement, encryption, SELinux, AVB,
+kernel and OEM packaging independently before flashing.

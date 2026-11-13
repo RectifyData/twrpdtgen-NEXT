@@ -7,7 +7,7 @@
 
 from pathlib import Path
 
-__version__ = "3.1.0a19"
+__version__ = "3.1.0a20"
 
 module_path = Path(__file__).parent
 current_path = Path.cwd()

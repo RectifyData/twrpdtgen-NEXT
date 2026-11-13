@@ -17,10 +17,17 @@ if /I "%~1"=="--setup-only" goto setup_only
 
 call :ensure_python_deps || exit /b 1
 
-if "%~1"=="" goto easy_mode
+if "%~1"=="" goto gui_mode
+if /I "%~1"=="--gui" goto gui_mode
 
 set "PYTHONPATH=%ROOT_DIR%;%PYTHONPATH%"
 %PYTHON_CMD% -m twrpdtgen %*
+set "RC=%ERRORLEVEL%"
+exit /b %RC%
+
+:gui_mode
+set "PYTHONPATH=%ROOT_DIR%;%PYTHONPATH%"
+%PYTHON_CMD% -m twrpdtgen.gui %*
 set "RC=%ERRORLEVEL%"
 exit /b %RC%
 
@@ -52,7 +59,7 @@ if "%TWRPDTGEN_SKIP_PIP%"=="1" exit /b 0
 %PYTHON_CMD% -c "import git,jinja2,lz4,zstandard,sebaubuntu_libs" >nul 2>&1
 if not errorlevel 1 exit /b 0
 echo [twrpdtgen-NEXT] Installing Python dependencies from this clone...
-%PYTHON_CMD% -m pip install -q -e "%ROOT_DIR%"
+%PYTHON_CMD% -m pip install -e "%ROOT_DIR%"
 if errorlevel 1 (
     echo [twrpdtgen-NEXT] ERROR: Python dependency installation failed. 1>&2
     exit /b 1
@@ -88,7 +95,7 @@ echo.
 echo twrpdtgen-NEXT is ready.
 echo.
 echo Easiest use:
-echo   Double-click launcher.cmd, choose your image/ZIP/folder, and let NEXT detect the rest.
+echo   Double-click launcher.cmd to open the GUI with options and progress.
 echo   You can also drag recovery.img, boot.img, vendor_boot.img, init_boot.img, a ZIP, or a folder onto launcher.cmd.
 echo.
 echo General form:
@@ -105,6 +112,8 @@ echo Modern boot/recovery v3/v4, init_boot v4 and vendor_boot v3/v4 use the nati
 echo Older legacy AIK-only image formats can still require Linux/WSL host tooling.
 echo.
 echo Launcher commands:
+echo   launcher.cmd --gui
+echo   launcher.cmd --cli [IMAGE...]
 echo   launcher.cmd --doctor
 echo   launcher.cmd --self-test
 echo   launcher.cmd --setup-only

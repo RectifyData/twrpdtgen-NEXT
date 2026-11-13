@@ -33,6 +33,8 @@ jobs:
           PYTHONPATH=. python -m twrpdtgen.tree_archive --help >/dev/null
           PYTHONPATH=. python -m twrpdtgen.auto_tree --help >/dev/null
           PYTHONPATH=. python -m twrpdtgen.easy --help >/dev/null
+          PYTHONPATH=. python -m twrpdtgen.gui --help >/dev/null
+          PYTHONPATH=. python -m twrpdtgen --help >/dev/null
       - name: Compile Python
         run: python -m compileall -q twrpdtgen tests
       - name: Run unit regression checks

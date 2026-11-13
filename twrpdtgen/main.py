@@ -60,7 +60,7 @@ def _extract_only(args):
         manager.cleanup()
 
 
-def main():
+def main(*, cli_only=False):
     print(
         "TWRP device tree generator NEXT\n"
         f"Version {version}\n")
@@ -154,10 +154,24 @@ def main():
         "-d",
         "--debug",
         action="store_true")
+    parser.add_argument("--cli", action="store_true",
+                        help="force terminal mode (no GUI)")
+    parser.add_argument("--gui", action="store_true",
+                        help="open graphical mode with optional IMAGE")
     args = parser.parse_args()
     setup_logging(args.debug)
 
+    if args.gui:
+        from twrpdtgen.gui import main as gui_main
+        return gui_main(
+            ["--source", str(args.image)] if args.image else [])
     if args.image is None:
+        if cli_only or args.cli:
+            parser.print_help()
+            return 0
+        from twrpdtgen.gui import can_launch_gui, main as gui_main
+        if can_launch_gui():
+            return gui_main([])
         from twrpdtgen.easy import main as easy_main
         return easy_main([])
 
@@ -246,6 +260,11 @@ def main():
         "Verify BoardConfig, fstab, AVB, encryption, "
         "ramdisk selection and partition layout before "
         "building or flashing.")
+
+
+def main_cli():
+    """Run a CLI without ever opening Tk."""
+    return main(cli_only=True)
 
 
 if __name__ == "__main__":
