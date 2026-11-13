@@ -71,7 +71,7 @@ class EasyModeTests(unittest.TestCase):
             recovery.write_bytes(b"recovery")
             boot.write_bytes(b"boot")
             with prepared_input(recovery) as (prepared, explicit):
-                self.assertIsNone(explicit)
+                self.assertEqual(explicit, prepared / "recovery.img")
                 self.assertTrue((prepared / "recovery.img").is_file())
                 self.assertTrue((prepared / "boot.img").is_file())
 
@@ -89,10 +89,40 @@ class EasyModeTests(unittest.TestCase):
             path = Path(temp) / "firmware.tar"
             path.write_bytes(b"x")
             with self.assertRaisesRegex(
-                    EasyModeError, "folder, an Android .img file"):
+                    EasyModeError, "folder, Android .img/.img.lz4"):
                 with_context = prepared_input(path)
                 with with_context:
                     pass
+
+
+    def test_slot_b_selection_does_not_mix_slot_a_companions(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / "boot_b.img").write_bytes(b"boot-b")
+            (root / "vendor_boot_a.img").write_bytes(b"vendor-a")
+            (root / "vendor_boot_b.img").write_bytes(b"vendor-b")
+            with prepared_input(root / "boot_b.img") as (prepared, explicit):
+                self.assertEqual(explicit, prepared / "boot_b.img")
+                self.assertTrue((prepared / "vendor_boot_b.img").is_file())
+                self.assertFalse((prepared / "vendor_boot_a.img").exists())
+
+    def test_zip_prefers_only_recovery_related_images(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            archive = root / "firmware.zip"
+            out = root / "out"
+            out.mkdir()
+            with zipfile.ZipFile(archive, "w") as bundle:
+                bundle.writestr("AP/recovery.img", b"recovery")
+                bundle.writestr("AP/boot.img", b"boot")
+                bundle.writestr("AP/system.img", b"huge-system-placeholder")
+                bundle.writestr("AP/vendor.img", b"huge-vendor-placeholder")
+            count = _safe_zip_images(archive, out)
+            self.assertEqual(count, 2)
+            self.assertTrue((out / "recovery.img").is_file())
+            self.assertTrue((out / "boot.img").is_file())
+            self.assertFalse((out / "system.img").exists())
+            self.assertFalse((out / "vendor.img").exists())
 
 
 if __name__ == "__main__":
