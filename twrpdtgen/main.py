@@ -160,8 +160,14 @@ def main():
         from twrpdtgen.easy import main as easy_main
         return easy_main([])
 
+    from twrpdtgen.easy import SUPPORTED_IMAGE_NAMES
+    easy_input = (
+        args.image.is_dir()
+        or args.image.suffix.lower() == ".zip"
+        or args.image.name.lower() in SUPPORTED_IMAGE_NAMES
+    )
     if (
-            (args.image.is_dir() or args.image.suffix.lower() == ".zip")
+            easy_input
             and not args.extract_only
             and not args.extract_to
             and args.boot_image is None
