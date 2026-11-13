@@ -38,5 +38,31 @@ class ColabNotebookTests(unittest.TestCase):
         )
 
 
+    def test_generic_notebook_is_vendor_neutral_and_fresh_process(self):
+        notebook = json.loads(
+            Path("colab/generic_image_to_tree.ipynb").read_text(
+                encoding="utf-8"
+            )
+        )
+        source = "\n".join(
+            "".join(cell.get("source", []))
+            for cell in notebook["cells"]
+            if cell.get("cell_type") == "code"
+        )
+        self.assertIn(
+            "[sys.executable, '-m', 'twrpdtgen', *args]",
+            source,
+        )
+        self.assertIn(
+            "'-m', 'twrpdtgen.tree_archive'",
+            source,
+        )
+        self.assertIn("--vendor-boot", source)
+        self.assertIn("--init-boot", source)
+        self.assertIn("--boot-image", source)
+        self.assertNotIn("samloader", source.lower())
+        self.assertNotIn("SM-A207F", source)
+
+
 if __name__ == "__main__":
     unittest.main()
