@@ -458,15 +458,17 @@ Python-native on Windows, Linux and Colab.
 
 ## Partition metadata
 
-NEXT hardcodes provisional boot/recovery (and modern init_boot/vendor_boot)
-partition-size limits using the actual supplied image file length, rounded up
-to a 4 KiB boundary. This avoids a blank recovery-size field even in cloud
-firmware-slicing workflows.
+NEXT records minimum boot/recovery/init_boot/vendor_boot image lengths
+(4 KiB aligned) as **comments only**, never as active partition-size build
+variables. The compressed or packed image length is not a hardware partition
+capacity; setting it as `BOARD_RECOVERYIMAGE_PARTITION_SIZE` can cause
+misleading or unusable builds.
 
-**These are provisional minimum build limits, not verified physical partition
-capacities.** A packed image may be smaller than its flash partition, and a
-new TWRP image may grow larger than stock. Verify GPT/lpdump before flashing.
-Verified `--boot-size` and `--recovery-size` overrides take precedence.
+Real physical sizes must come from checked GPT/by-name geometry or lpdump.
+Only explicitly supplied `--boot-size` and `--recovery-size` values
+are written as active capacity variables. NEXT checks that user-supplied
+sizes are not smaller than the supplied image; it **cannot verify** that
+they match the physical partition.
 For known GPT/super geometry, supply the verified values when needed:
 
 ~~~bash
@@ -476,6 +478,27 @@ python3 -m twrpdtgen recovery.img \
 ~~~
 
 Those numbers are illustrative only.
+
+## Generation evidence and accuracy
+
+Each tree now includes `generation-report.json` identifying the selected
+recovery source, stock fstab filesystem types, user-entered partition sizes,
+image-size minima, preserved stock patch date (if plausible), AVB metadata,
+and remaining verification tasks.
+
+Unambiguous filesystem types from the selected stock fstab are used instead
+of assuming ext4 (including legacy Omni trees). Conflicting or missing fstab
+types are left blank for review. Stock patch dates in the distant future or
+before Android security bulletins are rejected rather than reproduced.
+
+The interface is a conventional desktop utility with **Generate**, **Settings**,
+and **Updates** tabs using native platform widgets. Android/browser and Tk
+fallback layouts have simpler labels and controls. The CLI/GUI option schema
+still stays synchronized.
+
+Regenerate an older device tree from original firmware to get the safer
+size handling and report. NEXT does not silently patch existing generated
+outputs.
 
 ## What remains device-specific
 

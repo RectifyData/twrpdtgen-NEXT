@@ -68,8 +68,8 @@ def create_window(initial_source=None, initial_output=None):
     class QtWindow(QMainWindow):
         def __init__(self):
             super().__init__()
-            self.setWindowTitle("twrpdtgen-NEXT {} · Recovery Tree Studio (PyQt5)".format(__version__))
-            self.resize(1024, 800)
+            self.setWindowTitle("twrpdtgen NEXT {}".format(__version__))
+            self.resize(920, 720)
             self.setMinimumSize(620, 500)
             self.schema = interface_schema()
             self.fields = {}
@@ -83,26 +83,26 @@ def create_window(initial_source=None, initial_output=None):
             main = QWidget()
             main.setObjectName("appRoot")
             outer = QVBoxLayout(main)
-            outer.setContentsMargins(22, 18, 22, 16)
-            outer.setSpacing(14)
+            outer.setContentsMargins(12, 10, 12, 10)
+            outer.setSpacing(8)
             self.setCentralWidget(main)
 
             header = QFrame()
             header.setObjectName("appHeader")
             top = QHBoxLayout(header)
-            top.setContentsMargins(18, 14, 18, 14)
+            top.setContentsMargins(2, 3, 2, 6)
             heading = QVBoxLayout()
             heading.setSpacing(3)
-            name = QLabel("Recovery Tree Studio")
+            name = QLabel("twrpdtgen NEXT")
             name.setObjectName("title")
             heading.addWidget(name)
-            tagline = QLabel("Generate TWRP device trees from stock firmware · v{}".format(__version__))
+            tagline = QLabel("TWRP device tree generator · {}".format(__version__))
             tagline.setObjectName("subtitle")
             heading.addWidget(tagline)
             top.addLayout(heading)
             top.addStretch(1)
             self.tools = QToolButton(self)
-            self.tools.setText("Tools  ⋮")
+            self.tools.setText("Tools")
             self.tools.setPopupMode(QToolButton.InstantPopup)
             menu = QMenu(self.tools)
             menu.addAction("Check Git updates", self.check_updates)
@@ -131,24 +131,24 @@ def create_window(initial_source=None, initial_output=None):
                 scroll.setWidgetResizable(True)
                 content = QWidget()
                 layout = QVBoxLayout(content)
-                layout.setContentsMargins(6, 10, 12, 16)
-                layout.setSpacing(14)
+                layout.setContentsMargins(4, 4, 8, 6)
+                layout.setSpacing(9)
                 scroll.setWidget(content)
                 wrapper.addWidget(scroll)
                 self.tabs.addTab(page, title)
                 return layout
 
-            build_body = add_page("Build tree")
-            advanced_body = add_page("Advanced settings")
+            build_body = add_page("Generate")
+            advanced_body = add_page("Settings")
             update_body = add_page("Updates")
 
-            inputs = QGroupBox("1 · Firmware source")
+            inputs = QGroupBox("Source")
             ins = QFormLayout(inputs)
             self.add_path(ins, "source", "Image / archive / folder",
                           str(initial_source or ""), folder_choice=True)
             build_body.addWidget(inputs)
 
-            companions = QGroupBox("2 · Optional companion boot images")
+            companions = QGroupBox("Additional images")
             cp = QFormLayout(companions)
             for key, label in (
                     ("boot_image", "boot.img"),
@@ -157,7 +157,7 @@ def create_window(initial_source=None, initial_output=None):
                 self.add_path(cp, key, label)
             build_body.addWidget(companions)
 
-            destination = QGroupBox("3 · Output")
+            destination = QGroupBox("Output")
             dest = QFormLayout(destination)
             self.add_path(dest, "output", "Output directory",
                           str(initial_output or Path.home() / "TWRP-Trees"),
@@ -167,7 +167,7 @@ def create_window(initial_source=None, initial_output=None):
                            ["tree", "extract"], default="tree")
             build_body.addWidget(destination)
 
-            options = QGroupBox("4 · Recovery configuration")
+            options = QGroupBox("Recovery")
             opts = QFormLayout(options)
             for key, label in (
                     ("skeleton", "TWRP profile"),
@@ -183,15 +183,15 @@ def create_window(initial_source=None, initial_output=None):
                     ("recovery_size", "Verified recovery partition size"),
                     ("super_size", "Verified super partition size"),
                     ("dynamic_group_size", "Verified dynamic group size")):
-                self.add_text(opts, key, label, "e.g. 64MiB (optional)")
+                self.add_text(opts, key, label, "Known size only, e.g. 64MiB")
             note = QLabel(
-                "Blank size fields use provisional source-image limits; "
-                "verify the physical GPT/lpdump capacity before flashing.")
+                "Leave unknown sizes blank. NEXT no longer uses image lengths "
+                "as partition capacities.")
             note.setWordWrap(True)
             opts.addRow(note)
             advanced_body.addWidget(options)
 
-            advanced = QGroupBox("5 · CLI options (synchronized automatically)")
+            advanced = QGroupBox("Other options")
             advanced_layout = QFormLayout(advanced)
             if not self.schema["extras"]:
                 advanced_layout.addRow(QLabel("All generator options are already shown."))
@@ -213,22 +213,22 @@ def create_window(initial_source=None, initial_output=None):
                 self.extras[key] = widget
             advanced_body.addWidget(advanced)
 
-            flags = QGroupBox("Packaging & safety")
+            flags = QGroupBox("Export")
             flag_layout = QVBoxLayout(flags)
             for key, label in (
-                    ("overwrite", "Replace an existing tree (confirmation required)"),
-                    ("include_stock_root", "Include full stock ramdisk in ZIP")):
+                    ("overwrite", "Overwrite existing output (confirm first)"),
+                    ("include_stock_root", "Include stock ramdisk in ZIP")):
                 widget = QCheckBox(label)
                 self.flags[key] = widget
                 flag_layout.addWidget(widget)
             flag_layout.addWidget(QLabel(
-                "A generated tree is source only — never automatically flashed."))
+                "Generated source is not a boot-tested recovery."))
             build_body.addWidget(flags)
 
-            updates = QGroupBox("Git source updater")
+            updates = QGroupBox("Git updates")
             up_layout = QVBoxLayout(updates)
             up_layout.setSpacing(12)
-            self.git_status_badge = QLabel("NOT CHECKED")
+            self.git_status_badge = QLabel("Not checked")
             self.git_status_badge.setObjectName("updateBadge")
             up_layout.addWidget(self.git_status_badge)
             self.git_details = QLabel(
@@ -261,9 +261,12 @@ def create_window(initial_source=None, initial_output=None):
             update_body.addStretch()
 
             footer = QHBoxLayout()
-            self.go_button = QPushButton("Generate candidate tree" )
+            self.go_button = QPushButton("Generate tree")
             self.go_button.setObjectName("primary")
             self.go_button.clicked.connect(self.generate)
+            self.fields["mode"].currentTextChanged.connect(
+                lambda mode: self.go_button.setText(
+                    "Extract files" if mode == "extract" else "Generate tree"))
             footer.addWidget(self.go_button)
             self.open_button = QPushButton("Open output")
             self.open_button.clicked.connect(self.open_output)
@@ -273,14 +276,14 @@ def create_window(initial_source=None, initial_output=None):
             self.progress.hide()
             footer.addWidget(self.progress, stretch=1)
             outer.addLayout(footer)
-            self.status = QLabel("Ready. Select a firmware image to begin.")
+            self.status = QLabel("Ready")
             outer.addWidget(self.status)
             self.log = QPlainTextEdit()
             self.log.setReadOnly(True)
             self.log.setMaximumBlockCount(500)
             self.log.setFixedHeight(110)
             outer.addWidget(self.log)
-            self.append_log("Desktop GUI and CLI share the same generator.")
+            self.append_log("Select a source image to begin.")
 
         def add_text(self, layout, key, label, hint=""):
             field = QLineEdit()
@@ -523,49 +526,7 @@ def main(argv=None):
     owns = app is None
     if app is None:
         app = QApplication([sys.argv[0]])
-    app.setStyle("Fusion")
-    app.setStyleSheet("""
-        QWidget { background: #101722; color: #e9f0fa;
-                  font-size: 12px; font-family: "Segoe UI", Arial, sans-serif; }
-        QFrame#appHeader { background: #192638; border: 1px solid #31445c;
-                           border-radius: 13px; }
-        QLabel#title { font-size: 23px; font-weight: 700; color: #f6f9ff; }
-        QLabel#subtitle, QLabel#hint, QLabel#updateDetails { color: #afbed1; }
-        QGroupBox { background: #182333; border: 1px solid #304057;
-                    margin-top: 18px; padding: 19px 13px 13px;
-                    border-radius: 11px; font-size: 13px; font-weight: 600; }
-        QGroupBox::title { subcontrol-origin: margin; left: 13px;
-                           padding: 0 6px; color: #dce9fa; }
-        QLineEdit, QComboBox, QPlainTextEdit {
-            background: #0d1725; color: #f3f7fe; border: 1px solid #3a506a;
-            border-radius: 7px; padding: 8px; selection-background-color: #4774bd;
-        }
-        QLineEdit:focus, QComboBox:focus { border: 1px solid #82aaff; }
-        QPushButton, QToolButton { background: #263c58; color: #e8f1ff;
-                     border: 1px solid #405a79; border-radius: 8px;
-                     padding: 9px 13px; font-weight: 500; }
-        QPushButton:hover:enabled, QToolButton:hover:enabled { background: #365477; }
-        QPushButton:disabled { background: #202b39; border-color: #29394b;
-                               color: #8291a3; }
-        QPushButton#primary { background: #4379d1; color: white;
-                              border-color: #5b91eb; font-weight: 650; }
-        QPushButton#primary:hover { background: #5489df; }
-        QLabel#updateBadge { font-size: 15px; font-weight: 700;
-                             color: #b8d1fa; }
-        QPlainTextEdit { font-family: Consolas, "Courier New", monospace; }
-        QTabWidget::pane { border: none; background: #101722; }
-        QTabBar::tab { background: transparent; color: #a7b7cc;
-                       border-bottom: 2px solid #28364a;
-                       padding: 12px 22px; margin-right: 4px; }
-        QTabBar::tab:selected { color: #eef5ff; border-color: #72a1fd; }
-        QTabBar::tab:hover { color: white; background: #1a2a3d; }
-        QScrollArea#formScroll { border: none; background: transparent; }
-        QScrollBar:vertical { background: #152030; width: 10px; }
-        QScrollBar::handle:vertical { background: #405a78; border-radius: 5px; }
-        QCheckBox { spacing: 8px; }
-        QProgressBar { background: #23344a; border: 0; border-radius: 5px; }
-        QProgressBar::chunk { background: #6da0f8; border-radius: 5px; }
-    """)
+    # Use the native OS widget theme; avoid a hardcoded card-heavy skin.
     window = create_window(args.source, args.output)
     window.show()
     return app.exec_() if owns else 0

@@ -70,6 +70,38 @@ class ProductTemplateTests(unittest.TestCase):
             out)
         self.assertNotIn("BOARD_BOOTIMG_HEADER_VERSION :=", out)
 
+        # Stock image size is not the capacity of a physical partition.
+        # Filesystem types may only be set from explicit stock evidence.
+        observed = render_template(
+            None, "BoardConfig.mk", to_file=False,
+            current_year="2026", skeleton="omni",
+            device_info=device, image_info=image,
+            product_prefix="omni", recovery_layout="vendor_boot",
+            recovery_source=Obj(kind="vendor_boot_recovery_fragment"),
+            dynamic_partition_names=[], ab_partition_names=[],
+            partition_size_hints={
+                "boot": 4096, "vendor_boot": 8192, "init_boot": 12288,
+            },
+            observed_filesystems={
+                "system": "erofs", "userdata": "f2fs", "vendor": "ext4",
+            },
+            security_patch=None, next_options=options)
+        self.assertIn("# Source boot image minimum: 4096", observed)
+        self.assertIn("# Source vendor_boot image minimum: 8192", observed)
+        self.assertIn("# Source init_boot image minimum: 12288", observed)
+        self.assertNotIn("\nBOARD_BOOTIMAGE_PARTITION_SIZE :=", observed)
+        self.assertNotIn("\nBOARD_VENDOR_BOOTIMAGE_PARTITION_SIZE :=", observed)
+        self.assertNotIn("\nBOARD_INIT_BOOT_IMAGE_PARTITION_SIZE :=", observed)
+        self.assertIn("BOARD_SYSTEMIMAGE_PARTITION_TYPE := erofs", observed)
+        self.assertIn("BOARD_USERDATAIMAGE_FILE_SYSTEM_TYPE := f2fs", observed)
+        self.assertIn("BOARD_VENDORIMAGE_FILE_SYSTEM_TYPE := ext4", observed)
+        self.assertNotIn("BOARD_SYSTEMIMAGE_PARTITION_TYPE := ext4", observed)
+
+
+        # Omitting fstab evidence must not silently fall back to ext4.
+        self.assertNotIn("\nBOARD_SYSTEMIMAGE_PARTITION_TYPE :=", out)
+        self.assertNotIn("\nBOARD_USERDATAIMAGE_FILE_SYSTEM_TYPE :=", out)
+
         merged = render_template(
             None, "BoardConfig.mk", to_file=False,
             current_year="2026", skeleton="twrp-14.1",

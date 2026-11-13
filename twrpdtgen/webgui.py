@@ -34,61 +34,59 @@ _PAGE = r"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="dark">
-<title>twrpdtgen-NEXT — Recovery Tree Studio</title>
+<title>twrpdtgen NEXT</title>
 <style>
-:root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#eef3ff;background:#0b1020}
+:root{color-scheme:dark;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#e5ebf2;background:#111820}
 *{box-sizing:border-box}
-body{margin:0;background:linear-gradient(140deg,#0b1020,#13203a 68%,#151b2a);min-height:100vh}
-header{display:flex;align-items:center;justify-content:space-between;gap:16px;max-width:1100px;margin:auto;padding:22px 18px 15px}
-h1{font-size:clamp(22px,4vw,31px);margin:0;letter-spacing:-.6px}
-small,.muted{color:#aebbd0}
-main{max-width:1100px;margin:auto;padding:0 18px 80px}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-.card{background:#18243a;border:1px solid #32445e;border-radius:18px;padding:18px;margin-bottom:14px;box-shadow:0 7px 20px #04081445}
-.card h2{font-size:17px;margin:0 0 13px}
-label{display:block;font-size:13px;font-weight:600;margin:10px 0 5px}
+body{margin:0;background:#111820;min-height:100vh}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;max-width:920px;margin:auto;padding:16px 14px 12px;border-bottom:1px solid #34404d}
+h1{font-size:21px;line-height:1.25;margin:0;font-weight:600}
+small,.muted,.note{color:#b1becb}
+main{max-width:920px;margin:auto;padding:14px 14px 36px}
+.grid,.twocol{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.card{background:#1b2530;border:1px solid #334454;border-radius:7px;padding:15px;margin-bottom:12px}
+.card h2{font-size:15px;margin:0 0 10px;font-weight:600}
+label{display:block;font-size:13px;font-weight:500;margin:9px 0 5px}
 input,select,button{font:inherit}
-input[type=text],select{background:#0b172b;color:#f2f7ff;border:1px solid #405675;border-radius:10px;padding:11px;width:100%;min-width:0}
-input[type=file]{display:block;width:100%;background:#0d192b;padding:12px;border:1px dashed #547399;border-radius:10px;font-size:13px}
-input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid #83b0ff;outline-offset:2px}
-button{border:0;border-radius:10px;background:#33517c;color:white;padding:11px 15px;cursor:pointer}
-button.primary{background:#497ad7;color:white;font-weight:700}
-button:disabled{opacity:.5;cursor:wait}
-.check{display:flex;align-items:center;gap:10px;font-weight:400}
-.check input{height:18px;width:18px}
-.twocol{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+input[type=text],select{background:#101923;color:#eef4fb;border:1px solid #536476;border-radius:5px;padding:9px;width:100%;min-width:0}
+input[type=file]{display:block;width:100%;background:#101923;padding:10px;border:1px solid #536476;border-radius:5px;font-size:13px}
+input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid #8ab9ff;outline-offset:2px}
+button{border:1px solid #596a7c;border-radius:5px;background:#304356;color:#f0f5fa;padding:8px 12px;cursor:pointer}
+button.primary{background:#3c70ae;border-color:#477dbb;color:#fff;font-weight:600}
+button:disabled{opacity:.5;cursor:not-allowed}
+.check{display:flex;align-items:center;gap:9px;font-weight:400}
+.check input{height:16px;width:16px}
 .tools{position:relative}
-#toolsPane{display:none;position:absolute;right:0;top:48px;min-width:195px;background:#263957;border:1px solid #557199;border-radius:12px;padding:8px;z-index:3;box-shadow:0 14px 28px #0008}
-#toolsPane button{width:100%;text-align:left;background:none}
-#toolsPane button:hover{background:#405a80}
-.actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
-#progress{height:7px;border-radius:20px;background:#243b59;overflow:hidden;display:none;margin:11px 0}
-#bar{width:34%;height:100%;background:#77a5fe;animation:moving 1.2s ease-in-out infinite alternate}
+#toolsPane{display:none;position:absolute;right:0;top:40px;min-width:190px;background:#25313e;border:1px solid #526475;border-radius:5px;padding:4px;z-index:3}
+#toolsPane button{width:100%;text-align:left;background:none;border:0}
+#toolsPane button:hover{background:#3e5062}
+.actions{display:flex;flex-wrap:wrap;align-items:center;gap:9px}
+#progress{height:5px;background:#283949;overflow:hidden;display:none;margin:10px 0}
+#bar{width:34%;height:100%;background:#7ba9dc;animation:moving 1.2s ease-in-out infinite alternate}
 @keyframes moving{from{transform:translateX(-80%)}to{transform:translateX(290%)}}
-#log{background:#070f1c;border:1px solid #355071;border-radius:12px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.6 ui-monospace,monospace;padding:12px;height:185px;margin-top:12px}
-#status{color:#c3d6ef;font-size:14px}
-#download{display:none;text-decoration:none;background:#305f58;border-radius:10px;color:white;padding:11px 15px}
+#log{background:#0d141c;border:1px solid #35495a;border-radius:5px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.5 ui-monospace,monospace;padding:10px;height:145px;margin-top:10px}
+#status{color:#c4d2e0;font-size:13px}
+#download{display:none;text-decoration:none;background:#315c51;border-radius:5px;color:white;padding:9px 12px}
 #advanced{display:none}
-.pill{display:inline-block;border-radius:20px;background:#203d62;padding:5px 9px;color:#a5c7ff;font-size:11px;font-weight:700}
-.note{font-size:13px;line-height:1.5;color:#aebbd0}
-@media(max-width:720px){.grid,.twocol{grid-template-columns:1fr}header{padding:17px 14px}main{padding:0 12px 55px}.card{padding:15px;border-radius:15px}#log{height:210px}}
+.note{font-size:12px;line-height:1.45}
+@media(max-width:680px){.grid,.twocol{grid-template-columns:1fr}header{padding:13px 12px}main{padding:12px}.card{padding:12px}#log{height:190px}}
 </style></head><body>
-<header><div><div class="pill">LOCAL · PRIVATE</div><h1>Recovery Tree Studio</h1>
-<small>twrpdtgen-NEXT __VERSION__ · Android / Windows / Linux</small></div>
+<header><div><h1>twrpdtgen NEXT</h1>
+<small>Device tree generator · __VERSION__</small></div>
 <div class="tools"><button id="toolsButton" aria-haspopup="true" aria-expanded="false">⋮ Tools</button>
 <div id="toolsPane"><button id="copyLogs">Copy logs</button><button id="toggleAdvanced">Advanced settings</button>
 <button id="checkGitMenu">Check Git updates</button><button id="applyGitMenu">Update from Git…</button>
 <button id="about">About & safety</button></div></div></header>
 <main>
 <div class="grid">
-<section class="card"><h2>1 · Firmware source</h2>
+<section class="card"><h2>Source</h2>
 <label for="sourceFile">Choose an image, ZIP, or TAR (phone file picker)</label>
 <input type="file" id="sourceFile">
 <label for="source">Or use an existing local file/folder path</label>
 <input type="text" id="source" placeholder="~/storage/downloads/boot.img">
-<p class="note">Uploaded files stay on this device. The server runs at 127.0.0.1 and does not send firmware to the cloud.</p>
+<p class="note">Files are processed locally (127.0.0.1).</p>
 </section>
-<section class="card"><h2>2 · Destination</h2>
+<section class="card"><h2>Output</h2>
 <label for="output">Output folder on this device</label>
 <input type="text" id="output" value="~/TWRP-Trees">
 <label for="archive">ZIP filename (optional)</label>
@@ -96,7 +94,7 @@ button:disabled{opacity:.5;cursor:wait}
 <p class="note">A ZIP will be available for download in the browser when generation finishes.</p>
 </section>
 </div>
-<section class="card"><h2>3 · Companion boot images (optional)</h2>
+<section class="card"><h2>Additional images</h2>
 <div class="grid">
 <div><label for="bootFile">boot.img</label><input id="bootFile" type="file">
 <label for="boot_image">Or enter local path</label><input id="boot_image" type="text"></div>
@@ -105,9 +103,9 @@ button:disabled{opacity:.5;cursor:wait}
 <div><label for="initFile">init_boot.img</label><input id="initFile" type="file">
 <label for="init_boot">Or enter local path</label><input id="init_boot" type="text"></div>
 </div>
-<p class="note">Nearby matching images are detected automatically. For modern GKI devices, init_boot is a generic ramdisk source, not proof of the recovery flash target.</p>
+<p class="note">Matching images are auto-detected. init_boot is not proof of the recovery flash target.</p>
 </section>
-<section class="card"><h2>4 · Generator options</h2>
+<section class="card"><h2>Options</h2>
 <div class="grid">
 <div><label for="skeleton">TWRP profile</label><select id="skeleton"><option>auto</option><option>omni</option><option>twrp-12.1</option><option>twrp-14.1</option></select></div>
 <div><label for="recovery_layout">Recovery source</label><select id="recovery_layout"><option>auto</option><option>dedicated</option><option>boot</option><option>vendor_boot</option><option>init_boot</option></select></div>
@@ -122,14 +120,14 @@ button:disabled{opacity:.5;cursor:wait}
 <div><label for="super_size">Super</label><input id="super_size" type="text"></div>
 <div><label for="dynamic_group_size">Dynamic group</label><input id="dynamic_group_size" type="text"></div>
 </div>
-<p class="note">Blank sizes are provisional source-image estimates. Verify physical partitions before flashing.</p>
-<h2 style="margin-top:18px">Additional CLI options (automatically synchronized)</h2>
+<p class="note">Unknown sizes may be left blank; image lengths are not used as partition capacities.</p>
+<h2 style="margin-top:18px">Other options</h2>
 <div id="cliSyncedOptions" class="grid" aria-live="polite"></div>
 </div>
 <label class="check"><input type="checkbox" id="include_stock_root"> Include full stock ramdisk in downloaded ZIP</label>
 <label class="check"><input type="checkbox" id="overwrite"> Replace an existing tree (asks for confirmation)</label>
 </section>
-<section class="card"><h2>5 · Build / extract</h2>
+<section class="card"><h2>Run</h2>
 <div class="actions">
 <button class="primary" id="generate">Generate tree + ZIP</button>
 <button id="extract">Extract components only</button>
@@ -138,9 +136,9 @@ button:disabled{opacity:.5;cursor:wait}
 <div id="progress"><div id="bar"></div></div>
 <p id="status" role="status">Ready to process an image.</p>
 <pre id="log" aria-label="Job log">No job running.</pre>
-<p class="note">This tool makes candidate recovery sources only. It never flashes your device. Actual recovery placement, partition capacity, bootability, SELinux, AVB, and decryption require verification.</p>
+<p class="note">Generated trees have not been boot-tested. Review generation-report.json and verify hardware details before flashing.</p>
 </section>
-<section class="card"><h2>Git updater</h2>
+<section class="card"><h2>Updates</h2>
 <div class="actions"><button id="gitCheck">Check for updates</button>
 <button id="gitApply" disabled>Update from Git…</button></div>
 <p id="gitResult" class="note" role="status">Not checked. Use Check for updates to see if a clean fast-forward is available. The update action stays disabled otherwise.</p>

@@ -302,17 +302,17 @@ class NextWindow:
         self.busy = False
         self.result = None
         self.last_git_status = None
-        root.title("twrpdtgen-NEXT  {}  |  Recovery tree studio".format(__version__))
-        root.geometry("980x820")
+        root.title("twrpdtgen NEXT {}".format(__version__))
+        root.geometry("900x740")
         root.minsize(650, 560)
         root.protocol("WM_DELETE_WINDOW", self._close)
 
         style = ttk.Style(root)
         if "clam" in style.theme_names():
             style.theme_use("clam")
-        style.configure("Header.TLabel", font=("Arial", 18, "bold"))
-        style.configure("Action.TButton", padding=(18, 9))
-        style.configure("Section.TLabelframe", padding=(12, 8))
+        style.configure("Header.TLabel", font=("Arial", 13, "bold"))
+        style.configure("Action.TButton", padding=(10, 5))
+        style.configure("Section.TLabelframe", padding=(8, 6))
 
         from twrpdtgen.option_sync import interface_schema
         self.cli_schema = interface_schema()
@@ -346,9 +346,9 @@ class NextWindow:
         header = ttk.Frame(root, padding=(15, 12))
         header.pack(fill="x")
         ttk.Label(
-            header, text="Recovery Tree Studio", style="Header.TLabel"
+            header, text="twrpdtgen NEXT", style="Header.TLabel"
         ).pack(side="left")
-        self.tools_button = ttk.Menubutton(header, text="Tools  ⋮")
+        self.tools_button = ttk.Menubutton(header, text="Tools")
         self.tools_button.pack(side="right")
         menu = tk.Menu(self.tools_button, tearoff=False)
         menu.add_command(label="Open output folder", command=self._open_output)
@@ -383,7 +383,7 @@ class NextWindow:
                 int(-e.delta / 120), "units")))
         canvas.bind("<Leave>", lambda event: canvas.unbind_all("<MouseWheel>"))
 
-        source = ttk.LabelFrame(body, text="1  ·  Firmware source", style="Section.TLabelframe")
+        source = ttk.LabelFrame(body, text="Source", style="Section.TLabelframe")
         source.pack(fill="x", padx=4, pady=(4, 8))
         self._path_row(source, "source", "Image / archive / folder",
                        pick="source")
@@ -393,7 +393,7 @@ class NextWindow:
             wraplength=760,
         ).grid(row=1, column=0, columnspan=4, sticky="w", pady=(2, 6))
 
-        extra = ttk.LabelFrame(body, text="Optional companion images", style="Section.TLabelframe")
+        extra = ttk.LabelFrame(body, text="Additional images", style="Section.TLabelframe")
         extra.pack(fill="x", padx=4, pady=8)
         for role, label in (
                 ("boot_image", "boot.img"),
@@ -401,7 +401,7 @@ class NextWindow:
                 ("init_boot", "init_boot.img")):
             self._path_row(extra, role, label, pick="file")
 
-        output = ttk.LabelFrame(body, text="2  ·  Outputs", style="Section.TLabelframe")
+        output = ttk.LabelFrame(body, text="Output", style="Section.TLabelframe")
         output.pack(fill="x", padx=4, pady=8)
         self._path_row(output, "output", "Destination directory", pick="folder")
         self._path_row(output, "archive", "ZIP path (optional)", pick="save")
@@ -416,7 +416,7 @@ class NextWindow:
             mode_row, text="Extract parsed image components only",
             variable=self.fields["mode"], value="extract").pack(side="left")
 
-        advanced = ttk.LabelFrame(body, text="3  ·  Generator settings", style="Section.TLabelframe")
+        advanced = ttk.LabelFrame(body, text="Recovery", style="Section.TLabelframe")
         advanced.pack(fill="x", padx=4, pady=8)
         for row, (key, label) in enumerate((
                 ("skeleton", "TWRP profile"),
@@ -438,7 +438,7 @@ class NextWindow:
             advanced, text="Only choose a vendor fragment if you verified its identity.",
             wraplength=530).grid(row=4, column=0, columnspan=3, sticky="w")
 
-        geometry = ttk.LabelFrame(body, text="Optional verified partition sizes", style="Section.TLabelframe")
+        geometry = ttk.LabelFrame(body, text="Partition sizes", style="Section.TLabelframe")
         geometry.pack(fill="x", padx=4, pady=8)
         for row, (name, label) in enumerate((
                 ("boot_size", "Boot"), ("recovery_size", "Recovery"),
@@ -451,11 +451,11 @@ class NextWindow:
                 geometry, textvariable=self.fields[name], width=16
             ).grid(row=rr, column=col * 2 + 1, sticky="w", padx=4, pady=4)
         ttk.Label(
-            geometry, text="Leave blank to use source-image length estimates; these do NOT prove physical capacity.",
+            geometry, text="Leave unknown sizes blank. Image lengths are not partition capacities.",
             wraplength=760).grid(row=2, column=0, columnspan=4, sticky="w")
 
         synced = ttk.LabelFrame(
-            body, text="CLI options (automatically synchronized)",
+            body, text="Other options",
             style="Section.TLabelframe")
         synced.pack(fill="x", padx=4, pady=8)
         if not self.cli_schema["extras"]:
@@ -495,11 +495,11 @@ class NextWindow:
             checks, text="Include stock-root in ZIP (larger archive)",
             variable=self.flags["include_stock_root"]).pack(anchor="w")
         ttk.Label(
-            checks, text="Safety: Generated source is not validated for booting or flashing.",
+            checks, text="Generated source is not boot-tested.",
             wraplength=760).pack(anchor="w", pady=(6, 0))
 
         updater = ttk.LabelFrame(
-            body, text="Git updater (source checkouts)",
+            body, text="Updates",
             style="Section.TLabelframe")
         updater.pack(fill="x", padx=4, pady=8)
         update_row = ttk.Frame(updater)
@@ -539,7 +539,7 @@ class NextWindow:
             footer, height=7, wrap="word", font=("Consolas", 9),
             state="disabled")
         self.log.pack(fill="both")
-        self._message("Select firmware source, then Generate / Extract.")
+        self._message("Select a source image to begin.")
 
     def _path_row(self, parent, name, label, pick):
         row = int(parent.grid_size()[1])

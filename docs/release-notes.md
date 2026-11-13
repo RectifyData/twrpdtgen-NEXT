@@ -1,23 +1,23 @@
-# twrpdtgen-NEXT 3.1.0a25 — cleaner Qt UI and Git updater correction
+# twrpdtgen-NEXT 3.1.0a26 — simpler UI, source-grounded tree metadata
 
-Source-only prerelease; retains desktop PyQt5, Tk fallback, Android/browser GUI,
-and the independent CLI.
+Source-only prerelease (not a ready-to-flash recovery).
 
-- Reorganized the desktop PyQt5 workspace into three focused tabs:
-  Build tree, Advanced settings, and Updates.
-- Refined the visual hierarchy, colors, section spacing, buttons and logs
-  to make regular firmware extraction less cluttered.
-- Added clear Git update state labels: not checked, up to date, local changes,
-  branch ahead/diverged, and update available.
-- Disabled the Git Update button and Tools action until a fresh check
-  confirms a clean, behind-only upstream branch. This applies to PyQt5,
-  Tk fallback, and localhost Android/browser GUI.
-- A confirmed `twrpdtgen-update --apply` now rejects already-up-to-date
-  checkouts rather than incorrectly reporting an update. No Git merge
-  or checkout occurs when no new commits exist.
-- Tests cover real local Git branches, no-op merge prevention, desktop
-  disabled/enabled state transitions, and blocked localhost API updates.
-- Source recovery trees remain unverified for real booting or flashing.
+- PyQt5 now uses native Windows/Linux controls, lighter spacing, and concise
+  Generate / Settings / Updates tabs. Removed hardcoded dark-card styling,
+  unnecessary badges, and promotional descriptions.
+- Simplified Android browser GUI and Tk fallback labels, spacing, and forms.
+  The CLI, browser, Tk and Qt generators keep synchronized settings.
+- Fixed an accuracy bug: stock image file lengths are **not** verified
+  physical partition capacities. NEXT records aligned image lengths only as
+  commented minima, not active BoardConfig partition size assignments.
+  Explicit user-provided partition sizes remain active where supplied.
+- Read ext4/F2FS/ERoFS types from unambiguous selected stock fstab entries
+  instead of inventing ext4 defaults. Conflicting/missing types stay unset.
+- Reject implausible patch dates, including 2099 placeholders.
+- Generate `generation-report.json` with source provenance, size evidence,
+  AVB caveats, and outstanding validation requirements.
+- Added and updated automated tests for conservative template output,
+  filesystem detection, security patch validation, and UI action labels.
 
-Installation is visible, Git updates are never silent, and no existing user
-files are force-reset or stashed.
+To receive improved metadata, regenerate trees from original stock images.
+Generating a tree is not proof of recovery bootability or safe flashing.

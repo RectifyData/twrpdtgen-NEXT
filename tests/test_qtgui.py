@@ -34,6 +34,9 @@ class QtUITests(unittest.TestCase):
             self.assertIn("Check Git updates", menu)
             self.assertIn("Update from Git…", menu)
             self.assertFalse(window.busy)
+            self.assertEqual(window.go_button.text(), "Generate tree")
+            window.fields["mode"].setCurrentText("extract")
+            self.assertEqual(window.go_button.text(), "Extract files")
         finally:
             window.close()
 
@@ -44,7 +47,7 @@ class QtUITests(unittest.TestCase):
             self.assertEqual(
                 [window.tabs.tabText(index)
                  for index in range(window.tabs.count())],
-                ["Build tree", "Advanced settings", "Updates"])
+                ["Generate", "Settings", "Updates"])
             self.assertFalse(window.update_button.isEnabled())
             self.assertFalse(window.update_action.isEnabled())
             values = dict(

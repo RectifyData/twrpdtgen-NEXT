@@ -428,6 +428,11 @@ Example:
 ## Partition metadata
 
 NEXT does not invent partition sizes from compressed image file lengths.
+Source image length minima are written only as BoardConfig comments and
+into `generation-report.json`; they are not active build partition sizes.
+Unambiguous stock fstab filesystem types are also recorded, with unknown
+or conflicting types left unset. Stock patch metadata is accepted only if
+it is a plausible date. Every generated tree still needs real boot testing.
 
 Pass verified values from GPT/lpdump when they are required:
 

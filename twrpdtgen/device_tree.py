@@ -28,6 +28,7 @@ from twrpdtgen.next_support import (
     detect_android_api,
     detect_brightness_policy,
     detect_kernel_image_name,
+    detect_stock_filesystem_types,
     find_recovery_fstab,
     format_twrp_fstab,
     image_partition_size_hint,
@@ -188,6 +189,8 @@ class DeviceTree:
             raise ValueError(
                 "No stock fstab found in extracted ramdisks")
         self.stock_fstab_path = Path(fstab_location)
+        self.observed_filesystems = detect_stock_filesystem_types(
+            self.stock_fstab_path)
         LOGD(
             f"Generating fstab using "
             f"{fstab_location} as reference...")
@@ -586,6 +589,61 @@ class DeviceTree:
             self.stock_fstab_path,
             device_tree_folder / "recovery.stock.fstab")
 
+        # Preserve auditable provenance, rather than presenting inferred or
+        # user-entered geometry as measured physical partition capacities.
+        provided_sizes = {
+            "boot": self.options.boot_size,
+            "recovery": self.options.recovery_size,
+            "super": self.options.super_size,
+            "dynamic_group": self.options.dynamic_group_size,
+        }
+        report = {
+            "tool_version": version,
+            "status": "source_generated_unverified",
+            "device": {
+                "manufacturer": self.device_info.manufacturer,
+                "codename": self.device_info.codename,
+            },
+            "recovery_layout": self.recovery_layout,
+            "ramdisk_source": self.recovery_source,
+            "filesystem_types_from_stock_fstab": self.observed_filesystems,
+            "stock_fstab_file": "recovery.stock.fstab",
+            "partition_geometry": {
+                kind: {
+                    "input_size_bytes": provided_sizes.get(kind),
+                    "input_size_origin": (
+                        "user_supplied_not_independently_verified"
+                        if provided_sizes.get(kind) is not None
+                        else "not_provided"),
+                    "stock_image_minimum_bytes": self.partition_size_hints.get(kind),
+                    "stock_image_is_partition_capacity": False,
+                }
+                for kind in ("boot", "recovery", "vendor_boot", "init_boot",
+                             "super", "dynamic_group")
+            },
+            "security_patch": {
+                "value": self.security_patch,
+                "origin": (
+                    "stock_build_properties" if self.security_patch
+                    else "unknown"),
+            },
+            "avb": {
+                "signature_type": getattr(self.image_info, "sigtype", None),
+                "verified_rollback_index": False,
+                "verified_signing_keys": False,
+            },
+            "remaining_checks": [
+                "physical partition geometry and image size",
+                "recovery flash target and image packaging",
+                "fstab mount/crypto flags and filesystem compatibility",
+                "AVB/vbmeta signing and rollback policy",
+                "SELinux, kernel, HAL, encryption and real device boot",
+            ],
+        }
+        (device_tree_folder / "generation-report.json").write_text(
+            json.dumps(report, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8")
+
         if not git:
             return device_tree_folder
 
@@ -661,6 +719,7 @@ class DeviceTree:
                 self.ab_partition_names),
             security_patch=self.security_patch,
             partition_size_hints=self.partition_size_hints,
+            observed_filesystems=self.observed_filesystems,
             next_options=self.options,
             **kwargs)
 

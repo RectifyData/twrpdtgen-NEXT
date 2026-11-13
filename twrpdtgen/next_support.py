@@ -6,7 +6,7 @@
 """Conservative skeleton and metadata choices for generated recovery trees."""
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 import zlib
 import re
@@ -255,10 +255,56 @@ def valid_security_patch(value):
             or not _DATE.fullmatch(value)):
         return None
     try:
-        datetime.strptime(value, "%Y-%m-%d")
+        candidate = datetime.strptime(value, "%Y-%m-%d").date()
     except ValueError:
         return None
+    # A stock build property is evidence, not permission to invent a date.
+    # Reject implausible values, including far-future anti-rollback hacks.
+    if candidate.year < 2014 or candidate > (
+            datetime.now().date() + timedelta(days=45)):
+        return None
     return value
+
+
+def detect_stock_filesystem_types(fstab_path: Path):
+    """Read filesystem types explicitly present in the selected stock fstab.
+
+    Supports Android fs_mgr (block, mount, type) and TWRP
+    (mount, type, block) syntax. Unknown or conflicting entries are omitted.
+    This is *observed stock evidence*, not proof of build compatibility.
+    """
+    mounts = {
+        "/system": "system",
+        "/system_root": "system",
+        "/vendor": "vendor",
+        "/data": "userdata",
+    }
+    supported = {"ext4", "f2fs", "erofs"}
+    candidates = {}
+    conflicts = set()
+    try:
+        lines = Path(fstab_path).read_text(
+            encoding="utf-8", errors="replace").splitlines()
+    except (OSError, UnicodeError):
+        return {}
+    for line in lines:
+        fields = line.split("#", 1)[0].split()
+        if len(fields) < 3:
+            continue
+        mount = None
+        fstype = None
+        if fields[1] in mounts and fields[2] in supported:
+            mount, fstype = fields[1], fields[2]
+        elif fields[0] in mounts and fields[1] in supported:
+            mount, fstype = fields[0], fields[1]
+        if mount is None:
+            continue
+        key = mounts[mount]
+        if key in candidates and candidates[key] != fstype:
+            conflicts.add(key)
+        candidates[key] = fstype
+    return {name: fstype for name, fstype in candidates.items()
+            if name not in conflicts}
 
 
 def detect_kernel_image_name(kernel: Path) -> str:

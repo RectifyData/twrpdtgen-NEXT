@@ -36,6 +36,10 @@ and reused directly. Generic init_boot content alone is not complete recovery.
   **recovery.fstab** is the normalized TWRP-oriented output; compare the two
   before building because formatter-visible flags are not guaranteed to cover
   every stock fs_mgr detail.
+- **generation-report.json** lists observed inputs, the selected recovery
+  source, user-supplied sizes, source image length minima, and verification
+  tasks. Neither image file lengths nor manually entered sizes are independently
+  verified partition geometry.
 
 {% if recovery_root_mode == "full" %}
 Full mode was explicitly requested, so the complete selected recovery payload
@@ -67,14 +71,18 @@ Parsed geometry is also written to **prebuilt/image-metadata.json**.
 
 ## Mandatory verification before building
 
-1. Provisional partition-size limits were derived from input image file sizes,
-   rounded UP to 4 KiB. These are NOT verified physical partition capacities.
-   Compare all against stock GPT/lpdump before flashing; custom TWRP may exceed
-   the original image length. Verified --boot-size/--recovery-size take priority.
+1. The original stock image lengths (rounded up to 4 KiB) are recorded as
+   **comments only** in BoardConfig.mk and in generation-report.json. They
+   are not physical partition capacities and are never used as active build
+   size settings. Enter measured GPT/by-name or lpdump sizes through the
+   relevant CLI options only after verifying them. A custom image can exceed
+   the original stock image size.
 2. Confirm recovery placement and the target TWRP branch's vendor_boot/init_boot
    build flags. Extraction support does not make repacking device-independent.
 3. Check ramdisk fragment selection, DTB/DTBO, fstab block devices, slot suffixes,
    logical partitions, filesystem formats, and encryption dependencies.
+   Filesystem types are read from unambiguous stock fstab entries; unknown or
+   contradictory types are left unset rather than defaulted to ext4.
 4. Reconcile stock AVB signing and rollback rules. Do not blindly disable AVB.
 5. Check SELinux policy, kernel modules, vendor HALs, input/display and
    decryption services before trusting recovery on a physical phone.

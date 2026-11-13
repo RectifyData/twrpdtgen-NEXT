@@ -237,43 +237,54 @@ BOARD_BUILD_SYSTEM_ROOT_IMAGE := true
 {% if image_info.pagesize %}
 BOARD_FLASH_BLOCK_SIZE := {{ image_info.pagesize|int * 64 }} # page size * 64
 {% endif %}
-# Verified CLI sizes take precedence. Otherwise hardcode a provisional bound
-# from the selected source image's actual byte length rounded UP to 4 KiB.
-# This is NOT the hardware partition's true size: check GPT/lpdump before flash.
+# Only explicitly supplied partition capacities become active build settings.
+# Source image lengths are recorded below as comments, never as flash limits.
+# Use verified GPT/by-name geometry or lpdump before setting these values.
 {% if next_options.boot_size %}
 BOARD_BOOTIMAGE_PARTITION_SIZE := {{ next_options.boot_size }}
 {% elif partition_size_hints is defined and partition_size_hints.boot %}
-# PROVISIONAL: input boot.img file size aligned to 4 KiB, not GPT geometry.
-BOARD_BOOTIMAGE_PARTITION_SIZE := {{ partition_size_hints.boot }}
+# Source boot image minimum: {{ partition_size_hints.boot }} bytes (4 KiB aligned).
+# BOARD_BOOTIMAGE_PARTITION_SIZE := <verify from the actual partition table>
 {% else %}
 # TODO: Verify boot partition size from the stock partition table.
 {% endif %}
 {% if next_options.recovery_size %}
 BOARD_RECOVERYIMAGE_PARTITION_SIZE := {{ next_options.recovery_size }}
 {% elif partition_size_hints is defined and partition_size_hints.recovery and recovery_layout == "dedicated" %}
-# PROVISIONAL: input recovery.img file size aligned to 4 KiB, not GPT geometry.
-BOARD_RECOVERYIMAGE_PARTITION_SIZE := {{ partition_size_hints.recovery }}
+# Source recovery image minimum: {{ partition_size_hints.recovery }} bytes (4 KiB aligned).
+# BOARD_RECOVERYIMAGE_PARTITION_SIZE := <verify from the actual partition table>
 {% elif recovery_layout == "dedicated" %}
 # TODO: Verify dedicated recovery partition size.
 {% endif %}
 {% if partition_size_hints is defined and partition_size_hints.vendor_boot and image_info.source_images is defined %}
-# PROVISIONAL: input vendor_boot.img file size aligned to 4 KiB, not GPT geometry.
-BOARD_VENDOR_BOOTIMAGE_PARTITION_SIZE := {{ partition_size_hints.vendor_boot }}
+# Source vendor_boot image minimum: {{ partition_size_hints.vendor_boot }} bytes.
+# BOARD_VENDOR_BOOTIMAGE_PARTITION_SIZE := <verify from the actual partition table>
 {% endif %}
 {% if partition_size_hints is defined and partition_size_hints.init_boot and image_info.source_images is defined %}
-# PROVISIONAL: input init_boot.img file size aligned to 4 KiB, not GPT geometry.
-BOARD_INIT_BOOT_IMAGE_PARTITION_SIZE := {{ partition_size_hints.init_boot }}
+# Source init_boot image minimum: {{ partition_size_hints.init_boot }} bytes.
+# BOARD_INIT_BOOT_IMAGE_PARTITION_SIZE := <verify from the actual partition table>
 {% endif %}
 
 BOARD_HAS_LARGE_FILESYSTEM := true
-{% if skeleton == "omni" %}
-# Legacy defaults; verify against the stock fstab.
-BOARD_SYSTEMIMAGE_PARTITION_TYPE := ext4
-BOARD_USERDATAIMAGE_FILE_SYSTEM_TYPE := ext4
-BOARD_VENDORIMAGE_FILE_SYSTEM_TYPE := ext4
+# Filesystem types below come only from unambiguous entries in the
+# selected stock fstab. Unknown types are left unset, never defaulted to ext4.
+{% if observed_filesystems is defined and observed_filesystems.system is defined %}
+# Stock fstab: /system or /system_root
+BOARD_SYSTEMIMAGE_PARTITION_TYPE := {{ observed_filesystems.system }}
 {% else %}
-# TODO: Set system/vendor/userdata filesystem types after checking stock
-# fstab (ERoFS, ext4 and F2FS are not interchangeable).
+# TODO: Verify /system filesystem (ext4/F2FS/ERoFS).
+{% endif %}
+{% if observed_filesystems is defined and observed_filesystems.userdata is defined %}
+# Stock fstab: /data
+BOARD_USERDATAIMAGE_FILE_SYSTEM_TYPE := {{ observed_filesystems.userdata }}
+{% else %}
+# TODO: Verify /data filesystem type.
+{% endif %}
+{% if observed_filesystems is defined and observed_filesystems.vendor is defined %}
+# Stock fstab: /vendor
+BOARD_VENDORIMAGE_FILE_SYSTEM_TYPE := {{ observed_filesystems.vendor }}
+{% else %}
+# TODO: Verify /vendor filesystem type.
 {% endif %}
 TARGET_COPY_OUT_VENDOR := vendor
 

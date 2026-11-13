@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Mocked end-to-end generation: validates templates without flashable images."""
 import importlib
+import json
 import sys
 import tempfile
 import types
@@ -178,8 +179,18 @@ class GenerationTests(unittest.TestCase):
             self.assertIn("TW_DEFAULT_BRIGHTNESS := 180", board)
             self.assertIn("# Detected logical partitions: system vendor", board)
             self.assertNotIn("BOARD_SUPER_PARTITION_SIZE :=", board)
-            self.assertIn("BOARD_RECOVERYIMAGE_PARTITION_SIZE := 4096", board)
-            self.assertIn("PROVISIONAL: input recovery.img", board)
+            self.assertIn("# Source recovery image minimum: 4096", board)
+            self.assertNotIn("\nBOARD_RECOVERYIMAGE_PARTITION_SIZE :=", board)
+            self.assertNotIn("\nBOARD_BOOTIMAGE_PARTITION_SIZE :=", board)
+            self.assertNotIn("\nBOARD_USERDATAIMAGE_FILE_SYSTEM_TYPE :=", board)
+            report = json.loads((tree / "generation-report.json").read_text())
+            self.assertEqual(report["status"], "source_generated_unverified")
+            self.assertFalse(report["partition_geometry"]["recovery"][
+                "stock_image_is_partition_capacity"])
+            self.assertEqual(report["partition_geometry"]["recovery"][
+                "stock_image_minimum_bytes"], 4096)
+            self.assertIsNone(report["partition_geometry"]["recovery"][
+                "input_size_bytes"])
             self.assertNotIn("BOARD_BOOTIMAGE_PARTITION_SIZE :=", board)
             self.assertNotIn("2099-12-31", board)
             self.assertNotIn("--flags 3", board)
@@ -203,6 +214,15 @@ class GenerationTests(unittest.TestCase):
             self.assertEqual(config.count("system vendor"), 2)
             self.assertIn("BOARD_SUPER_PARTITION_SIZE := 9126805504", config)
             self.assertIn("BOARD_RECOVERYIMAGE_PARTITION_SIZE := 67108864", config)
+            again_report = json.loads(
+                (tree / "generation-report.json").read_text())
+            self.assertEqual(
+                again_report["partition_geometry"]["recovery"][
+                    "input_size_bytes"], 67108864)
+            self.assertEqual(
+                again_report["partition_geometry"]["recovery"][
+                    "input_size_origin"],
+                "user_supplied_not_independently_verified")
             again.cleanup()
 
 
