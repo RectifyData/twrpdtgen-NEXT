@@ -180,16 +180,38 @@ def _single_unambiguous_image(root: Path) -> Optional[Path]:
 
 
 def _copy_standard_companions(source: Path, destination: Path) -> None:
-    """Copy conventional companions from the selected image's directory."""
-    for candidate in source.parent.iterdir():
-        if not candidate.is_file():
-            continue
-        if candidate.name.lower() not in SUPPORTED_IMAGE_NAMES:
-            continue
-        output = destination / candidate.name
-        if output.exists():
-            continue
-        shutil.copy2(candidate, output)
+    """Copy likely same-slot companions without mixing A/B image sets."""
+    available = {
+        candidate.name.lower(): candidate
+        for candidate in source.parent.iterdir()
+        if candidate.is_file()
+    }
+    lowered = source.name.lower()
+    slot = None
+    if lowered.endswith("_a.img"):
+        slot = "a"
+    elif lowered.endswith("_b.img"):
+        slot = "b"
+
+    for role in ("recovery", "vendor_boot", "boot", "init_boot"):
+        choices = []
+        if slot is not None:
+            choices.append(f"{role}_{slot}.img")
+            choices.append(f"{role}.img")
+        else:
+            choices.extend((
+                f"{role}.img",
+                f"{role}_a.img",
+                f"{role}_b.img",
+            ))
+        for name in choices:
+            candidate = available.get(name)
+            if candidate is None:
+                continue
+            output = destination / candidate.name
+            if not output.exists():
+                shutil.copy2(candidate, output)
+            break
 
 
 @contextmanager
@@ -431,7 +453,7 @@ def choose_input() -> Path:
 
     if not sys.stdin.isatty():
         raise EasyModeError(
-            "No input was provided. Pass a folder, .img, or ZIP path. "
+            "No input was provided. Pass a folder, .img/.img.lz4, ZIP, TAR, or TAR.MD5 path. "
             "Example: twrpdtgen ./firmware"
         )
 
