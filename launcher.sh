@@ -110,7 +110,8 @@ Launcher commands:
   bash launcher.sh --self-test
   bash launcher.sh --setup-only
 
-GUI: ./launcher.sh --gui [--source IMAGE]
+Desktop GUI: ./launcher.sh --gui [--source IMAGE]
+Android/browser GUI: ./launcher.sh --web [--port 8765]
 CLI: ./launcher.sh --cli [IMAGE and options]
 All other arguments are passed directly to python3 -m twrpdtgen.
 The -o/--output directory does not need to exist beforehand.
@@ -120,9 +121,18 @@ EOF
 main() {
     check_python
     if is_colab; then log "Google Colab detected."; else log "Linux bootstrap mode."; fi
-    install_system_dependencies
+    if [[ -n "${TERMUX_VERSION:-}" || "${PREFIX:-}" == *"com.termux"* ]]; then
+        log "Termux detected: using Python-native extraction without apt bootstrap."
+    else
+        install_system_dependencies
+    fi
     install_python_dependencies
     case "${1:-}" in
+        --web)
+            shift
+            export PYTHONPATH="$ROOT_DIR${PYTHONPATH:+:$PYTHONPATH}"
+            exec "$PYTHON_BIN" -m twrpdtgen.webgui "$@"
+            ;;
         --gui)
             shift
             export PYTHONPATH="$ROOT_DIR${PYTHONPATH:+:$PYTHONPATH}"
@@ -143,6 +153,9 @@ main() {
                 return 0
             fi
             export PYTHONPATH="$ROOT_DIR${PYTHONPATH:+:$PYTHONPATH}"
+            if [[ -n "${TERMUX_VERSION:-}" || "${PREFIX:-}" == *"com.termux"* ]]; then
+                exec "$PYTHON_BIN" -m twrpdtgen.webgui
+            fi
             if [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; then
                 exec "$PYTHON_BIN" -m twrpdtgen.gui
             fi

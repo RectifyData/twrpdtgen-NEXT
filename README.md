@@ -13,6 +13,35 @@ device-tree skeletons from classic and split Android boot images.
 - Run `python3 -m twrpdtgen --help` (or the equivalent through a launcher) for
   the current generator CLI arguments.
 
+## Android-friendly browser GUI
+
+An additional full GUI runs locally in a mobile browser and works without
+Tk or a desktop environment. On Android, start it inside Termux:
+
+```bash
+pkg install python git
+python -m pip install git+https://github.com/RectifyData/twrpdtgen-NEXT.git
+twrpdtgen-web
+```
+
+The local server binds only to `127.0.0.1:8765` and opens the browser.
+If automatic opening is unavailable, visit `http://127.0.0.1:8765/`.
+Use the phone's file picker to upload a boot/recovery image, ZIP/TAR archive,
+or companion image directly into the local application; or specify an
+existing Termux-accessible file path. Run the same generator and download the
+ZIP directly in the browser when finished. The web GUI uses a per-session
+token, rejects off-host requests, and has no cloud dependencies.
+
+Termux may require access to shared storage (`termux-setup-storage`)
+for manually typed paths. Android use depends on successfully installing
+Python dependencies in your Termux environment; it is not an APK.
+
+```bash
+python -m twrpdtgen.webgui --port 8765
+# Windows: launcher.cmd --web
+# Linux:   ./launcher.sh --web
+```
+
 ## Desktop GUI and independent CLI
 
 Windows and Linux now have a full Tk GUI with file/folder and companion-image
@@ -32,7 +61,7 @@ twrpdtgen-gui --source recovery.img
 ```
 
 The GUI requires Python tkinter and a graphical desktop. Android Termux
-can use the CLI; Tk needs a working X11 environment on Android.
+can use the local browser GUI or CLI; Tk itself needs X11 on Android.
 
 ## Easy Mode — recommended standalone use
 

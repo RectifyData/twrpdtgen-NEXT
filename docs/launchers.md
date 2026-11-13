@@ -9,6 +9,25 @@ platforms where they run:
 Both launchers bootstrap the dependencies they need and then forward normal
 arguments to `python -m twrpdtgen`.
 
+## Android and browser GUI
+
+`twrpdtgen-web` or `python -m twrpdtgen.webgui` runs a local-only mobile
+and desktop browser interface, bound to 127.0.0.1:8765. On Android/Termux,
+the web GUI uses the system browser and file picker without needing Tk/X11.
+It accepts image/archive/folder paths or local file uploads, matching
+companions, advanced generator settings and downloadable ZIP output.
+
+Android Termux:
+```sh
+pkg install python git
+python -m pip install git+https://github.com/RectifyData/twrpdtgen-NEXT.git
+twrpdtgen-web
+```
+Use `termux-setup-storage` if you need manually typed shared-storage paths.
+The server is private to this device, cannot be accessed remotely, and
+does not send firmware to any web provider. It is a Python/Termux tool, not
+a native Android APK. Installation of dependencies may vary by device.
+
 ## GUI and CLI entry points
 
 Windows GUI: `launcher.cmd` or `launcher.cmd --gui`.

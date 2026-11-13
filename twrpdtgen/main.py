@@ -157,13 +157,13 @@ def main(*, cli_only=False):
                         help="force terminal mode (no GUI)")
     parser.add_argument("--gui", action="store_true",
                         help="open graphical mode with optional IMAGE")
+    parser.add_argument("--web", action="store_true",
+                        help="open the mobile-friendly localhost browser GUI")
     args = parser.parse_args()
-    # Loading CLI help or starting the GUI must not require the AIK
-    # generation dependencies. Defer them until an actual CLI job runs.
-    if not args.gui:
-        from sebaubuntu_libs.liblogging import setup_logging
-        setup_logging(args.debug)
 
+    if args.web:
+        from twrpdtgen.webgui import main as web_main
+        return web_main([])
     if args.gui:
         from twrpdtgen.gui import main as gui_main
         return gui_main(
@@ -175,9 +175,19 @@ def main(*, cli_only=False):
         from twrpdtgen.gui import can_launch_gui, main as gui_main
         if can_launch_gui():
             return gui_main([])
+        # Termux has a full Android browser but typically not a Tk desktop.
+        import os
+        if (os.environ.get("TERMUX_VERSION")
+                or "com.termux" in os.environ.get("PREFIX", "")):
+            from twrpdtgen.webgui import main as web_main
+            return web_main([])
         from twrpdtgen.easy import main as easy_main
         return easy_main([])
 
+    # The legacy unpacker dependencies are required only for actual CLI
+    # generation, not to display --help or bring up a GUI.
+    from sebaubuntu_libs.liblogging import setup_logging
+    setup_logging(args.debug)
     from twrpdtgen.easy import SUPPORTED_IMAGE_NAMES
     easy_input = (
         args.image.is_dir()

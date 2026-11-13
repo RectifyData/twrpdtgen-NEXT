@@ -19,6 +19,7 @@ call :ensure_python_deps || exit /b 1
 
 if "%~1"=="" goto gui_mode
 if /I "%~1"=="--gui" goto gui_mode
+if /I "%~1"=="--web" goto web_mode
 
 set "PYTHONPATH=%ROOT_DIR%;%PYTHONPATH%"
 %PYTHON_CMD% -m twrpdtgen %*
@@ -28,6 +29,12 @@ exit /b %RC%
 :gui_mode
 set "PYTHONPATH=%ROOT_DIR%;%PYTHONPATH%"
 %PYTHON_CMD% -m twrpdtgen.gui %*
+set "RC=%ERRORLEVEL%"
+exit /b %RC%
+
+:web_mode
+set "PYTHONPATH=%ROOT_DIR%;%PYTHONPATH%"
+%PYTHON_CMD% -m twrpdtgen.webgui
 set "RC=%ERRORLEVEL%"
 exit /b %RC%
 
@@ -113,6 +120,7 @@ echo Older legacy AIK-only image formats can still require Linux/WSL host toolin
 echo.
 echo Launcher commands:
 echo   launcher.cmd --gui
+echo   launcher.cmd --web
 echo   launcher.cmd --cli [IMAGE...]
 echo   launcher.cmd --doctor
 echo   launcher.cmd --self-test
