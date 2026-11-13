@@ -8,7 +8,6 @@
 from argparse import ArgumentParser
 from pathlib import Path
 
-from sebaubuntu_libs.liblogging import setup_logging
 from twrpdtgen import __version__ as version, current_path
 from twrpdtgen.next_support import (
     NextOptions,
@@ -159,7 +158,11 @@ def main(*, cli_only=False):
     parser.add_argument("--gui", action="store_true",
                         help="open graphical mode with optional IMAGE")
     args = parser.parse_args()
-    setup_logging(args.debug)
+    # Loading CLI help or starting the GUI must not require the AIK
+    # generation dependencies. Defer them until an actual CLI job runs.
+    if not args.gui:
+        from sebaubuntu_libs.liblogging import setup_logging
+        setup_logging(args.debug)
 
     if args.gui:
         from twrpdtgen.gui import main as gui_main
