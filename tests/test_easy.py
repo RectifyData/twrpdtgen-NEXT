@@ -60,7 +60,7 @@ class EasyModeTests(unittest.TestCase):
             with zipfile.ZipFile(archive, "w") as bundle:
                 bundle.writestr("README.txt", b"nothing")
             with self.assertRaisesRegex(
-                    EasyModeError, "contains no .img files"):
+                    EasyModeError, "contains no Android .img or .img.lz4"):
                 _safe_zip_images(archive, out)
 
     def test_standard_single_image_auto_collects_companions(self):
@@ -86,7 +86,7 @@ class EasyModeTests(unittest.TestCase):
 
     def test_bad_input_type_is_explained(self):
         with tempfile.TemporaryDirectory() as temp:
-            path = Path(temp) / "firmware.tar"
+            path = Path(temp) / "firmware.7z"
             path.write_bytes(b"x")
             with self.assertRaisesRegex(
                     EasyModeError, "folder, Android .img/.img.lz4"):
