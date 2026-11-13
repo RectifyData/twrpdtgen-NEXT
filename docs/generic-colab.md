@@ -30,14 +30,11 @@ The exact set depends on where that device stores the recovery ramdisk.
 
 1. Run the setup cell. It pulls the current repository and prints the exact
    NEXT version and Git commit.
-2. Upload all required images with the upload cell.
-3. Enter the uploaded filenames in the generation form.
-4. Leave optional companion names blank when they are not used by that device.
-5. Leave partition-size fields blank unless the values were verified from GPT,
-   lpdump, or equivalent authoritative partition metadata.
-6. Run generation. The notebook launches the generator in a fresh Python
-   process, discovers the single generated manufacturer/codename tree, bundles
-   it with the vendor-neutral tree archiver, and downloads the resulting ZIP.
+2. Upload the image files you have. Multiple files can be selected together; a ZIP containing `.img` files can also be uploaded.
+3. Run the generation cell. No image filenames need to be entered manually.
+4. NEXT auto-detects standard `recovery.img`, `boot.img`, `vendor_boot.img`, and `init_boot.img` names, including `_a` / `_b` slot variants, chooses the recovery-bearing primary image, and attaches companions automatically.
+5. Optional skeleton/layout/root-mode controls remain dropdowns with safe automatic defaults.
+6. The notebook launches generation in a fresh Python process, bundles the discovered manufacturer/codename tree, and downloads the resulting ZIP.
 
 The ZIP preserves POSIX symlink metadata and omits `recovery/stock-root` by
 default. Enable stock-root inclusion only for auditing.
@@ -70,3 +67,20 @@ you may still need verified work for:
 - vendor-specific build flags
 
 NEXT deliberately avoids inventing those values.
+
+
+## Zero-typing auto discovery
+
+The same logic is available outside Colab:
+
+```bash
+python3 -m twrpdtgen.auto_tree ./images \
+  -o ./output \
+  --archive twrp-device-tree.zip \
+  --overwrite
+```
+
+The input folder can contain standard unsuffixed images or slot-suffixed forms
+such as `boot_a.img` and `vendor_boot_a.img`. Unsuffixed images are preferred,
+then slot A, then slot B. If two equally plausible files remain for one role,
+NEXT refuses to guess across firmware variants.

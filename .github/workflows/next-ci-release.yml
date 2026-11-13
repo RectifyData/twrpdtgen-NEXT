@@ -31,6 +31,7 @@ jobs:
           PYTHONPATH=. python -m twrpdtgen.cloud_slice --help >/dev/null
           PYTHONPATH=. python -m twrpdtgen.cloud_tree --help >/dev/null
           PYTHONPATH=. python -m twrpdtgen.tree_archive --help >/dev/null
+          PYTHONPATH=. python -m twrpdtgen.auto_tree --help >/dev/null
       - name: Compile Python
         run: python -m compileall -q twrpdtgen tests
       - name: Run unit regression checks

@@ -1,33 +1,29 @@
-# twrpdtgen-NEXT 3.1.0a15 — vendor-neutral Colab and tree export
+# twrpdtgen-NEXT 3.1.0a16 — zero-typing generic Colab
 
-This prerelease makes NEXT's multi-device scope explicit and usable without
-Samsung FUS while retaining the 3.1.0a14 stock-brightness and partition-size
-fixes already present on master.
+This prerelease removes the tedious filename-entry step from the generic
+multi-device workflow.
 
 Changes:
 
-- Adds `colab/generic_image_to_tree.ipynb`, a vendor-neutral Colab workflow for
-  uploaded recovery/boot images from Samsung, Google, Xiaomi, OnePlus,
-  Motorola, Sony, Nothing, ASUS, Fairphone and other Android devices supported
-  by the parser.
-- Supports dedicated `recovery.img`, recovery-as-boot, and split modern input
-  sets with optional `boot.img`, `vendor_boot.img`, and `init_boot.img`.
-- Adds `python -m twrpdtgen.tree_archive`, a generic generated-tree ZIP
-  exporter that preserves Unix symlinks, enables ZIP64, and excludes
-  `recovery/stock-root` by default.
-- Refactors Samsung cloud-tree generation to use that same generic archiver, so
-  ZIP behavior is no longer implemented inside Samsung-specific download code.
-- Adds direct regression coverage using a non-Samsung `google/husky` tree.
-- Adds notebook tests ensuring the generic workflow does not depend on
-  samloader or a Samsung model.
-- CI validates both Colab notebooks and the vendor-neutral tree-archive CLI.
-- Adds documentation separating the OEM-neutral generator from Samsung-only
-  FUS firmware acquisition.
+- Adds `python -m twrpdtgen.auto_tree` for automatic discovery of conventional
+  Android recovery/boot images in a directory.
+- Recognizes `recovery.img`, `vendor_boot.img`, `boot.img`, and
+  `init_boot.img`, including `_a` and `_b` slot-suffixed names.
+- Prefers a dedicated recovery image when available, then vendor_boot, boot, or
+  init_boot, and automatically supplies the remaining detected images as
+  companions.
+- Rejects genuinely ambiguous same-rank firmware candidates instead of silently
+  combining images from different builds.
+- Reworks the generic Colab notebook into an upload-and-run flow: no image
+  filenames are typed manually.
+- Accepts multiple uploaded images in one picker and can extract .img files
+  directly from an uploaded ZIP.
+- Keeps only optional dropdown/boolean advanced controls; the default path needs
+  no text entry.
+- Adds Linux/Windows regression tests for discovery ordering, nested image
+  discovery, ambiguity handling, and missing-input errors.
+- CI now validates the automatic-discovery CLI.
 
-The core generator is image-driven rather than phone-list-driven. OEM signing,
-AVB, encryption, SELinux, display/input quirks, USB configuration, partition
-geometry and OEM-specific image wrappers remain target-validation work and are
-not guessed.
-
-**Experimental source generator prerelease.** Generated trees still require a
-real build and target-device validation before flashing.
+This remains a source-tree generator. OEM-specific AVB, encryption, SELinux,
+image wrapping, partition geometry, and hardware bring-up still require
+target-device validation before flashing.

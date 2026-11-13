@@ -50,16 +50,15 @@ class ColabNotebookTests(unittest.TestCase):
             if cell.get("cell_type") == "code"
         )
         self.assertIn(
-            "[sys.executable, '-m', 'twrpdtgen', *args]",
+            "sys.executable, '-m', 'twrpdtgen.auto_tree'",
             source,
         )
-        self.assertIn(
-            "'-m', 'twrpdtgen.tree_archive'",
-            source,
-        )
-        self.assertIn("--vendor-boot", source)
-        self.assertIn("--init-boot", source)
-        self.assertIn("--boot-image", source)
+        self.assertIn("files.upload()", source)
+        self.assertIn("zipfile.is_zipfile", source)
+        self.assertNotIn("primary_image =", source)
+        self.assertNotIn("boot_image =", source)
+        self.assertNotIn("vendor_boot_image =", source)
+        self.assertNotIn("init_boot_image =", source)
         self.assertNotIn("samloader", source.lower())
         self.assertNotIn("SM-A207F", source)
 
