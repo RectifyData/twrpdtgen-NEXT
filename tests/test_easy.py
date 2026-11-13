@@ -125,5 +125,25 @@ class EasyModeTests(unittest.TestCase):
             self.assertFalse((out / "vendor.img").exists())
 
 
+    def test_nested_factory_zip_is_followed(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            outer = root / "factory.zip"
+            inner = root / "image-device-build.zip"
+            out = root / "out"
+            out.mkdir()
+            with zipfile.ZipFile(inner, "w") as bundle:
+                bundle.writestr("boot.img", b"boot")
+                bundle.writestr("vendor_boot.img", b"vendor")
+            with zipfile.ZipFile(outer, "w") as bundle:
+                bundle.writestr("bootloader-device.img", b"bootloader")
+                bundle.writestr("image-device-build.zip", inner.read_bytes())
+            count = _safe_zip_images(outer, out)
+            self.assertEqual(count, 2)
+            self.assertTrue((out / "boot.img").is_file())
+            self.assertTrue((out / "vendor_boot.img").is_file())
+            self.assertFalse((out / "bootloader-device.img").exists())
+
+
 if __name__ == "__main__":
     unittest.main()
