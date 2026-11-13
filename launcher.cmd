@@ -17,7 +17,7 @@ if /I "%~1"=="--setup-only" goto setup_only
 
 call :ensure_python_deps || exit /b 1
 
-if "%~1"=="" goto ready
+if "%~1"=="" goto easy_mode
 
 set "PYTHONPATH=%ROOT_DIR%;%PYTHONPATH%"
 %PYTHON_CMD% -m twrpdtgen %*
@@ -85,7 +85,11 @@ goto ready
 
 :ready
 echo.
-echo twrpdtgen-NEXT is ready for native Windows modern-image parsing.
+echo twrpdtgen-NEXT is ready.
+echo.
+echo Easiest use:
+echo   Double-click launcher.cmd, choose your image/ZIP/folder, and let NEXT detect the rest.
+echo   You can also drag recovery.img, boot.img, vendor_boot.img, init_boot.img, a ZIP, or a folder onto launcher.cmd.
 echo.
 echo General form:
 echo   launcher.cmd [path-to-image-containing-recovery-ramdisk] -o [output-folder]
