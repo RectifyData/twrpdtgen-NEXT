@@ -248,6 +248,53 @@ class GenerationTests(unittest.TestCase):
             self.assertEqual(
                 probe._image_partition_hints(), {"boot": 8192})
 
+    def test_init_boot_generic_and_vendor_recovery_merge(self):
+        DeviceTree = load_device_tree(Obj())
+        with tempfile.TemporaryDirectory() as folder:
+            folder = Path(folder)
+            generic = folder / "generic"
+            recovery = folder / "recovery"
+            generic.mkdir()
+            recovery.mkdir()
+            fragment = Obj(
+                ramdisk_type=2, index=0, name="recovery",
+                root=recovery, type_name="recovery", board_id=(0, 0))
+            init = Obj(
+                kind="init_boot", source=folder / "init_boot.img",
+                ramdisk_roots=[generic])
+            vendor = Obj(
+                kind="vendor_boot", source=folder / "vendor_boot.img",
+                ramdisk_roots=[recovery],
+                vendor_ramdisk_fragments=[fragment])
+            probe = object.__new__(DeviceTree)
+            probe.modern_manager = object()
+            probe.image_info = Obj(source_images=[init, vendor])
+            probe.recovery_fragment = None
+
+            probe.recovery_layout = "init_boot"
+            roots, source = probe._select_recovery_ramdisk()
+            self.assertEqual(roots, [generic])
+            self.assertEqual(source["kind"], "init_boot_generic_ramdisk")
+
+            probe.recovery_layout = "vendor_boot"
+            roots, source = probe._select_recovery_ramdisk()
+            self.assertEqual(roots, [generic, recovery])
+            self.assertEqual(source["kind"], "vendor_boot_recovery_fragment")
+            self.assertEqual(
+                source["supplemental_images"], ["init_boot.img"])
+
+            probe.image_info.source_images.append(
+                Obj(kind="boot", source=folder / "boot.img", ramdisk_roots=[]))
+            probe.recovery_layout = "boot"
+            roots, source = probe._select_recovery_ramdisk()
+            self.assertEqual(roots, [generic])
+            self.assertEqual(source["kind"], "init_boot_generic_ramdisk")
+
+            probe.image_info = Obj(source_images=[vendor])
+            probe.recovery_layout = "init_boot"
+            with self.assertRaisesRegex(ValueError, "no extractable generic ramdisk"):
+                probe._select_recovery_ramdisk()
+
     def test_vendor_boot_recovery_fragment_selection_is_unambiguous(self):
         DeviceTree = load_device_tree(Obj())
         with tempfile.TemporaryDirectory() as temp:

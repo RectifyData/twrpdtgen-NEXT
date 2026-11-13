@@ -1,15 +1,18 @@
-# twrpdtgen-NEXT 3.1.0a18 — source-image-based partition size hints
+# twrpdtgen-NEXT 3.1.0a19 — init_boot resource extraction
 
-This source-only prerelease hardcodes provisional BoardConfig size limits
-instead of leaving the dedicated recovery field blank.
+This is a source-only prerelease adding init_boot support for devices without
+dedicated recovery partitions.
 
-- Infer boot, recovery and modern vendor_boot/init_boot size hints from their
-  actual source file lengths, rounded up to 4 KiB.
-- Mark all inferred values as PROVISIONAL, not verified partition capacity.
-- Accept verified --boot-size / --recovery-size overrides; reject overrides
-  smaller than the respective input source image.
-- Keep recovery-as-boot separate from a dedicated recovery partition.
-- Add generation and size-bound regression tests.
+- Auto or explicit --recovery-layout init_boot selects generic init_boot
+  resources when no dedicated/known recovery source exists.
+- Split GKI recovery trees now preserve init_boot generic ramdisk resources
+  beneath an unambiguous vendor_boot RECOVERY fragment.
+- boot.img with no ramdisk may fall back to matching init_boot generic resources.
+- Recognizes slot-suffixed recovery_a/b and init_boot_a/b image files.
+- Adds regression coverage for layout detection, fallback, source merging,
+  and proper attribution of generic vs recovery ramdisks.
 
-Flash safety, partition table geometry, build success, AVB, encryption,
-SELinux and bootability remain unverified until device-specific validation.
+Generic init_boot does NOT establish where a flashable TWRP image belongs.
+An init_boot-only tree requires usable device properties and a stock fstab.
+Build success, flash safety, AVB, encryption and actual bootability require
+physical device-specific verification.

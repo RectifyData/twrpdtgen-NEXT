@@ -91,6 +91,12 @@ class NextSupportTests(unittest.TestCase):
         self.assertEqual(choose_recovery_layout("auto", "boot.img", True), "boot")
         self.assertEqual(choose_recovery_layout("auto", "unknown.img", True), "unknown")
         self.assertEqual(choose_recovery_layout("vendor_boot", "boot.img", False), "vendor_boot")
+        self.assertEqual(choose_recovery_layout("auto", "init_boot.img", False), "init_boot")
+        self.assertEqual(choose_recovery_layout("auto", "init_boot_b.img", True), "init_boot")
+        self.assertEqual(choose_recovery_layout("auto", "recovery_a.img", True), "dedicated")
+        self.assertEqual(choose_recovery_layout("auto", "boot_b.img", True), "boot")
+        self.assertEqual(NextOptions(recovery_layout="init_boot").recovery_layout,
+                         "init_boot")
 
     def test_detect_brightness_policy_from_stock_init(self):
         with tempfile.TemporaryDirectory() as temp:

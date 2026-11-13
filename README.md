@@ -46,7 +46,7 @@ required for the common path.
 NEXT parses the AOSP image structures used by current Android releases:
 
 - boot/recovery header v3 and v4
-- init_boot.img v4 generic ramdisk
+- init_boot.img v4 generic ramdisk, including standalone resource extraction
 - vendor_boot.img v3 and v4
 - vendor_boot v4 ramdisk tables with NONE, PLATFORM, RECOVERY and DLKM fragments
 - vendor DTB and v4 bootconfig
@@ -171,6 +171,34 @@ Advanced override:
 python3 -m twrpdtgen recovery.img --recovery-root-mode full
 python3 -m twrpdtgen recovery.img --recovery-root-mode minimal
 ~~~
+
+## Devices without a dedicated recovery partition
+
+NEXT now extracts the generic ramdisk directly from `init_boot.img`.
+When no dedicated recovery or identifiable vendor_boot recovery fragment exists,
+auto mode can use init_boot as a **generic resource source**. When vendor_boot
+provides an unambiguous recovery ramdisk, NEXT includes init_boot generic
+resources below that vendor recovery ramdisk.
+
+```bash
+python3 -m twrpdtgen init_boot.img \
+  --boot-image boot.img \
+  --vendor-boot vendor_boot.img \
+  --recovery-layout init_boot
+```
+
+The flag controls **extraction source**, not where TWRP must be flashed.
+A generic init_boot ramdisk is not, by itself, a complete recovery image.
+For a full tree, stock fstab and device identity still need to be available,
+often from companion images. If those are absent, NEXT does not fabricate them.
+To extract only without generating a tree:
+
+```bash
+python3 -m twrpdtgen init_boot.img --extract-only ./extracted-init
+```
+
+Verify actual recovery placement, kernel/vendor compatibility, AVB and
+partition geometry independently before building/flashing.
 
 ## Extract modern images only
 

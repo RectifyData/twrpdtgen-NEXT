@@ -84,3 +84,12 @@ The input folder can contain standard unsuffixed images or slot-suffixed forms
 such as `boot_a.img` and `vendor_boot_a.img`. Unsuffixed images are preferred,
 then slot A, then slot B. If two equally plausible files remain for one role,
 NEXT refuses to guess across firmware variants.
+
+
+## init_boot support
+
+Use `init_boot.img` directly as an extraction source without a dedicated
+recovery partition. With a typed vendor_boot RECOVERY fragment, NEXT combines
+init_boot's generic ramdisk below that recovery fragment. A full tree still
+requires usable device properties and a stock fstab; these may not exist
+in an init_boot-only image.

@@ -206,6 +206,51 @@ class ModernBootTests(unittest.TestCase):
             self.assertTrue(
                 (parsed.ramdisk / "prop.default").is_file())
 
+    def test_init_boot_only_is_a_generic_extraction_source(self):
+        with tempfile.TemporaryDirectory() as folder:
+            folder = Path(folder)
+            image = folder / "init_boot.img"
+            boot_v4(self.gzip_cpio, image)
+            manager = ModernImageManager(image)
+            try:
+                info = manager.unpack()
+                self.assertEqual(info.kind, "init_boot")
+                self.assertEqual(info.recovery_layout_hint, "init_boot")
+                self.assertTrue(info.ramdisk_roots)
+                self.assertFalse(info.recovery_ramdisk_roots)
+                self.assertTrue(
+                    (info.ramdisk_roots[0] / "etc/recovery.fstab").is_file())
+            finally:
+                manager.cleanup()
+
+    def test_empty_boot_can_use_init_boot_resources(self):
+        with tempfile.TemporaryDirectory() as folder:
+            folder = Path(folder)
+            boot = folder / "boot.img"
+            init = folder / "init_boot.img"
+            boot_v4(b"", boot, kernel=b"KERNEL")
+            boot_v4(self.gzip_cpio, init)
+            manager = ModernImageManager(boot, init_boot=init)
+            try:
+                info = manager.unpack()
+                self.assertEqual(info.recovery_layout_hint, "init_boot")
+                self.assertEqual(info.kernel.read_bytes(), b"KERNEL")
+                self.assertEqual(len(info.ramdisk_roots), 1)
+            finally:
+                manager.cleanup()
+
+    def test_slotted_recovery_and_init_boot_names(self):
+        with tempfile.TemporaryDirectory() as folder:
+            folder = Path(folder)
+            init = folder / "init_boot_b.img"
+            recovery = folder / "recovery_a.img"
+            boot_v4(self.gzip_cpio, init)
+            boot_v4(self.gzip_cpio, recovery)
+            self.assertEqual(
+                unpack_modern_image(init, folder / "i").kind, "init_boot")
+            self.assertEqual(
+                unpack_modern_image(recovery, folder / "r").kind, "recovery")
+
     def test_vendor_boot_v4_fragments_bootconfig_and_dtb(self):
         with tempfile.TemporaryDirectory() as temp:
             temp = Path(temp)

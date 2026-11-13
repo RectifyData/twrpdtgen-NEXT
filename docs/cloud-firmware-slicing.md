@@ -378,3 +378,11 @@ size fields. Values may be byte counts or accepted values such as `64MiB`.
 They are forwarded to the normal NEXT partition-size validation. Leave them
 blank when the exact GPT/lpdump value has not been verified; NEXT deliberately
 does not treat image file length as partition capacity.
+
+
+## init_boot-only extraction
+
+For split-GKI devices lacking recovery.img, request `--partition init_boot`
+to extract its generic ramdisk and attempt source-tree generation. This does
+not mean the recovery flash target is init_boot. A full tree may require
+companion boot/vendor_boot files to supply missing device properties or fstab.
