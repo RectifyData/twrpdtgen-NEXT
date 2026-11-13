@@ -75,7 +75,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
 <small>Device tree generator · __VERSION__</small></div>
 <div class="tools"><button id="toolsButton" aria-haspopup="true" aria-expanded="false">⋮ Tools</button>
 <div id="toolsPane"><button id="copyLogs">Copy logs</button><button id="toggleAdvanced">Advanced settings</button>
-<button id="checkGitMenu">Check Git updates</button><button id="applyGitMenu">Update from Git…</button>
+<button id="checkGitMenu">Check Git updates</button><button id="applyGitMenu">Pull updates…</button>
 <button id="about">About & safety</button></div></div></header>
 <main>
 <div class="grid">
@@ -140,7 +140,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
 </section>
 <section class="card"><h2>Updates</h2>
 <div class="actions"><button id="gitCheck">Check for updates</button>
-<button id="gitApply" disabled>Update from Git…</button></div>
+<button id="gitApply" disabled>Pull updates…</button></div>
 <p id="gitResult" class="note" role="status">Not checked. Use Check for updates to see if a clean fast-forward is available. The update action stays disabled otherwise.</p>
 </section>
 </main>
@@ -285,14 +285,14 @@ async function gitAction(kind){
   return;
  }
  if(kind==="apply"&&!confirm(
-  "Fast-forward this clean Git checkout to "+gitStatus.latest.slice(0,12)+
+  "Run git pull to update this checkout to "+gitStatus.latest.slice(0,12)+
   "? Local edits, untracked files and diverged commits are never overwritten."))return;
  if(kind==="check")gitStatus=null;
  gitBusy=true;
  working(active);
  el("gitResult").textContent=kind==="check"
   ?"Checking configured upstream for changes…"
-  :"Applying verified fast-forward…";
+  : "Running git pull…";
  try{
   const result=await send("/api/git/"+kind,kind==="apply"?{confirmed:true}:{});
   gitStatus=result;

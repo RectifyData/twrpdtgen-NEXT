@@ -32,7 +32,7 @@ class QtUITests(unittest.TestCase):
                             .issubset(data["cli_options"]))
             menu = [item.text() for item in window.tools.menu().actions()]
             self.assertIn("Check Git updates", menu)
-            self.assertIn("Update from Git…", menu)
+            self.assertIn("Pull updates…", menu)
             self.assertFalse(window.busy)
             self.assertEqual(window.go_button.text(), "Generate tree")
             window.fields["mode"].setCurrentText("extract")

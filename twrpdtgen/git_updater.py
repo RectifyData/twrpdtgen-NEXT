@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Conservative Git checkout updater for twrpdtgen-NEXT.
+"""Conservative Git pull updater for twrpdtgen-NEXT.
 
 No force/reset/stash, no destructive working-tree changes, and no updates to
-pip wheel/ZIP installations. Updates require an explicitly requested fast
-forward of the configured upstream, and never run automatically on startup.
+pip wheel/ZIP installations. Only an explicitly requested plain git pull
+on the configured tracking branch can update source. No automatic startup pull.
 """
 from __future__ import annotations
 
@@ -64,10 +64,9 @@ class UpdateStatus:
                 "This branch has both local and upstream commits. "
                 "Resolve divergence manually before updating."),
             "ahead": (
-                "The local branch is ahead of upstream. Nothing will be "
-                "checked out automatically."),
+                "The local branch is ahead of upstream. Git pull is blocked."),
             "up_to_date": (
-                "Already up to date. There is nothing new to check out."),
+                "Already up to date. There is nothing new to pull."),
             "update_available": (
                 "A clean, fast-forward update is available."),
         }
@@ -175,27 +174,46 @@ def apply_update(root: Optional[Path] = None, *, confirmed: bool = False) -> Upd
             "resolve the branch history manually.".format(status.ahead))
     if not status.available:
         raise GitUpdateError(
-            "Already up to date. There is nothing new to check out; "
-            "no Git merge or checkout was performed.")
-    # Recheck tracked and untracked files immediately before merging.
+            "Already up to date. There is nothing new to pull; "
+            "git pull was not run.")
+    # Recheck tracked and untracked files immediately before pulling.
     if _git(path, "status", "--porcelain", "--untracked-files=all"):
-        raise GitUpdateError("Working tree changed; update cancelled.")
-    _git(path, "merge", "--ff-only", status.upstream)
+        raise GitUpdateError("Working tree changed; pull cancelled.")
+    # Run only 'git pull'. Git handles the already-configured upstream.
+    # The clean, behind-only check above avoids the usual divergence case.
+    branch, upstream, _ = _upstream(path)
+    if branch != status.branch or upstream != status.upstream:
+        raise GitUpdateError(
+            "Tracking branch changed during update; pull cancelled.")
+    # Refuse a local setting that would turn a fast-forward into a merge
+    # commit. Ordinary pull in a behind-only checkout then fast-forwards.
+    try:
+        pull_ff = _git(path, "config", "--get", "pull.ff")
+    except GitUpdateError:
+        pull_ff = ""
+    if pull_ff.lower() == "false":
+        raise GitUpdateError(
+            "Git is configured with pull.ff=false, which creates merge "
+            "commits. Change that setting manually before updating.")
+    _git(path, "pull", timeout=180)
     finished = check_updates(path, fetch=False)
-    if finished.current != status.latest:
-        raise GitUpdateError("Git merge completed at an unexpected commit.")
+    if (finished.current == status.current
+            or finished.behind or finished.ahead):
+        raise GitUpdateError(
+            "Git pull did not leave a clean, current tracking branch. "
+            "Inspect the repository before continuing.")
     return finished
 
 
 def main(argv=None):
     parser = ArgumentParser(
         prog="twrpdtgen-update",
-        description="Check or fast-forward the twrpdtgen-NEXT source checkout")
+        description="Check upstream or run git pull for twrpdtgen-NEXT")
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--check", action="store_true",
                        help="fetch and compare with upstream (default)")
     group.add_argument("--apply", action="store_true",
-                       help="explicitly fast-forward clean tracked checkout")
+                       help="run plain git pull on the configured tracking branch")
     parser.add_argument("--repo", type=Path, default=None,
                         help="source checkout; default is this package's repo")
     parser.add_argument("--json", action="store_true",
@@ -222,7 +240,7 @@ def main(argv=None):
         print("Behind: {} | Ahead: {} | Local edits: {}".format(
             status.behind, status.ahead, "yes" if status.dirty else "no"))
         if args.apply:
-            print("Successfully fast-forwarded to new upstream commits.")
+            print("git pull succeeded; new upstream commits installed.")
             print("Restart twrpdtgen-NEXT; reinstall dependencies if required.")
         else:
             print(status.explanation)

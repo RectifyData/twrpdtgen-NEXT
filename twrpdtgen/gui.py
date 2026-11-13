@@ -356,7 +356,7 @@ class NextWindow:
         menu.add_separator()
         menu.add_command(label="Check Git updates", command=self._check_updates)
         menu.add_command(
-            label="Update from Git…", command=self._apply_update,
+            label="Pull updates…", command=self._apply_update,
             state="disabled")
         self.tools_menu = menu
         menu.add_separator()
@@ -508,7 +508,7 @@ class NextWindow:
             update_row, text="Check for updates", command=self._check_updates)
         self.update_check_button.pack(side="left")
         self.update_apply_button = ttk.Button(
-            update_row, text="Update from Git…", command=self._apply_update,
+            update_row, text="Pull updates…", command=self._apply_update,
             state="disabled")
         self.update_apply_button.pack(side="left", padx=10)
         self.git_status_text = tk.StringVar(
@@ -632,7 +632,7 @@ class NextWindow:
             and self.last_git_status.can_apply)
         state = "normal" if allowed else "disabled"
         self.update_apply_button.configure(state=state)
-        self.tools_menu.entryconfigure("Update from Git…", state=state)
+        self.tools_menu.entryconfigure("Pull updates…", state=state)
 
     def _check_updates(self):
         self._start_update("check")
@@ -656,8 +656,8 @@ class NextWindow:
             return
         if mode == "apply" and not messagebox.askyesno(
                 "Confirm Git update",
-                "Fetch and fast-forward the source checkout from its "
-                "configured upstream?\n\nLocal edits and diverged "
+                "Run git pull for the configured upstream branch? "
+                "\n\nLocal edits and diverged "
                 "commits will be protected. Restart after updating.",
                 parent=self.root):
             return
@@ -670,7 +670,7 @@ class NextWindow:
         self._sync_update_controls()
         self.progress.start(14)
         self.status.set("Checking Git upstream..." if mode == "check"
-                        else "Applying confirmed fast-forward...")
+                        else "Running git pull...")
         worker = threading.Thread(
             target=self._update_worker, args=(mode,), daemon=True)
         worker.start()
@@ -756,7 +756,7 @@ class NextWindow:
                         self.status.set("Git update completed")
                         messagebox.showinfo(
                             "Git updater",
-                            "Source checkout updated safely.\n"
+                            "git pull completed.\n"
                             "Restart twrpdtgen-NEXT to load the new code.",
                             parent=self.root)
                     elif kind == "done":

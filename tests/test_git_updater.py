@@ -5,6 +5,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from twrpdtgen.git_updater import (
     GitUpdateError, apply_update, check_updates, checkout_root,
@@ -65,7 +66,16 @@ class GitUpdaterTests(unittest.TestCase):
         self.assertEqual(self.git(self.work, "rev-parse", "HEAD"), original)
         with self.assertRaisesRegex(GitUpdateError, "not confirmed"):
             apply_update(self.work)
-        applied = apply_update(self.work, confirmed=True)
+        from twrpdtgen import git_updater
+        with patch("twrpdtgen.git_updater._git", wraps=git_updater._git) as calls:
+            applied = apply_update(self.work, confirmed=True)
+        self.assertEqual(
+            [call.args[1:] for call in calls.call_args_list
+             if call.args[1] == "pull"],
+            [("pull",)])
+        self.assertFalse(any(
+            call.args[1] in ("merge", "checkout", "reset", "stash")
+            for call in calls.call_args_list))
         self.assertEqual(applied.behind, 0)
         self.assertEqual(applied.ahead, 0)
         self.assertEqual(self.git(self.work, "rev-parse", "HEAD"),
@@ -102,6 +112,19 @@ class GitUpdaterTests(unittest.TestCase):
         self.assertEqual(
             (self.work / "local.txt").read_text(), "my local commit\n")
 
+    def test_pull_ff_false_config_blocks_update_without_merging(self):
+        self.peer_commit()
+        self.git(self.work, "config", "pull.ff", "false")
+        prior = self.git(self.work, "rev-parse", "HEAD")
+        from twrpdtgen import git_updater
+        with patch("twrpdtgen.git_updater._git", wraps=git_updater._git) as calls:
+            with self.assertRaisesRegex(GitUpdateError, "pull.ff=false"):
+                apply_update(self.work, confirmed=True)
+        self.assertFalse(any(
+            call.args[1] in ("pull", "merge", "checkout", "reset")
+            for call in calls.call_args_list))
+        self.assertEqual(prior, self.git(self.work, "rev-parse", "HEAD"))
+
     def test_installed_packages_and_unrelated_parent_repos_refused(self):
         nonrepo = self.base / "not-a-project"
         nonrepo.mkdir()
@@ -113,7 +136,6 @@ class GitUpdaterTests(unittest.TestCase):
             checkout_root(nested)
 
     def test_up_to_date_update_is_blocked_without_running_merge(self):
-        from unittest.mock import patch
         status = check_updates(self.work)
         self.assertFalse(status.available)
         self.assertFalse(status.can_apply)
@@ -125,7 +147,7 @@ class GitUpdaterTests(unittest.TestCase):
             with self.assertRaisesRegex(GitUpdateError, "Already up to date"):
                 apply_update(self.work, confirmed=True)
             self.assertFalse(any(
-                call.args[1] in ("merge", "checkout", "reset", "stash")
+                call.args[1] in ("pull", "merge", "checkout", "reset", "stash")
                 for call in invoke.call_args_list))
         self.assertEqual(current, self.git(self.work, "rev-parse", "HEAD"))
         self.assertEqual(status.to_dict()["state"], "up_to_date")

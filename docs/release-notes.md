@@ -1,23 +1,20 @@
-# twrpdtgen-NEXT 3.1.0a26 — simpler UI, source-grounded tree metadata
+# twrpdtgen-NEXT 3.1.0a27 — use plain git pull for updates
 
-Source-only prerelease (not a ready-to-flash recovery).
+Source-only prerelease. Not a flashable recovery image.
 
-- PyQt5 now uses native Windows/Linux controls, lighter spacing, and concise
-  Generate / Settings / Updates tabs. Removed hardcoded dark-card styling,
-  unnecessary badges, and promotional descriptions.
-- Simplified Android browser GUI and Tk fallback labels, spacing, and forms.
-  The CLI, browser, Tk and Qt generators keep synchronized settings.
-- Fixed an accuracy bug: stock image file lengths are **not** verified
-  physical partition capacities. NEXT records aligned image lengths only as
-  commented minima, not active BoardConfig partition size assignments.
-  Explicit user-provided partition sizes remain active where supplied.
-- Read ext4/F2FS/ERoFS types from unambiguous selected stock fstab entries
-  instead of inventing ext4 defaults. Conflicting/missing types stay unset.
-- Reject implausible patch dates, including 2099 placeholders.
-- Generate `generation-report.json` with source provenance, size evidence,
-  AVB caveats, and outstanding validation requirements.
-- Added and updated automated tests for conservative template output,
-  filesystem detection, security patch validation, and UI action labels.
+- The Git updater now invokes **plain git pull** on the checkout's
+  configured tracking branch. It does not invoke git merge or git checkout,
+  or force-reset or stash files.
+- Update checking still fetches current upstream metadata and confirms a
+  clean, behind-only checkout. An already-current, dirty, or diverged
+  repository cannot start an update.
+- A local pull.ff=false configuration that would force a merge commit is
+  rejected to protect the working copy.
+- PyQt5, Tk fallback and Android browser interfaces display a clear
+  "Pull updates" action and "git pull" progress/confirmation wording.
+- CLI and Git regression tests assert that exactly plain git pull is called
+  and that no pull is invoked for an up-to-date checkout.
+- All recovery generation accuracy improvements from a26 remain intact.
 
-To receive improved metadata, regenerate trees from original stock images.
-Generating a tree is not proof of recovery bootability or safe flashing.
+Install source code, not an APK or Windows executable. Physical recovery
+bootability and flash safety remain unverified.

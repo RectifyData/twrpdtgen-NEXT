@@ -59,7 +59,7 @@ def create_window(initial_source=None, initial_output=None):
                         self.message.emit("Checking configured Git upstream...")
                         status = check_updates()
                     else:
-                        self.message.emit("Fast-forwarding clean Git checkout...")
+                        self.message.emit("Running git pull...")
                         status = apply_update(confirmed=True)
                     self.success.emit(status)
             except Exception as exc:
@@ -106,7 +106,7 @@ def create_window(initial_source=None, initial_output=None):
             self.tools.setPopupMode(QToolButton.InstantPopup)
             menu = QMenu(self.tools)
             menu.addAction("Check Git updates", self.check_updates)
-            self.update_action = menu.addAction("Update from Git…", self.apply_update)
+            self.update_action = menu.addAction("Pull updates…", self.apply_update)
             self.update_action.setEnabled(False)
             menu.addSeparator()
             menu.addAction("Open output folder", self.open_output)
@@ -241,7 +241,7 @@ def create_window(initial_source=None, initial_output=None):
             up_buttons = QHBoxLayout()
             self.check_button = QPushButton("Check for updates")
             self.check_button.clicked.connect(self.check_updates)
-            self.update_button = QPushButton("Update from Git…")
+            self.update_button = QPushButton("Pull updates…")
             self.update_button.clicked.connect(self.apply_update)
             self.update_button.setEnabled(False)
             up_buttons.addWidget(self.check_button)
@@ -249,7 +249,7 @@ def create_window(initial_source=None, initial_output=None):
             up_buttons.addStretch()
             up_layout.addLayout(up_buttons)
             safety = QLabel(
-                "Only an explicit fast-forward of a clean Git checkout is "
+                "Only a confirmed git pull of a clean Git checkout is "
                 "allowed. No reset, stash, or checkout will run when "
                 "already up to date. Restart to use updated source.")
             safety.setObjectName("hint")
@@ -439,7 +439,7 @@ def create_window(initial_source=None, initial_output=None):
                 return
             if QMessageBox.question(
                     self, "Confirm Git update",
-                    "Fetch and fast-forward this source checkout from its "
+                    "Run git pull on this checkout's "
                     "configured upstream?\n\nUncommitted work and diverged "
                     "branches are never overwritten. Restart after updating.",
                     QMessageBox.Yes | QMessageBox.No,
@@ -468,7 +468,7 @@ def create_window(initial_source=None, initial_output=None):
                 self.append_log("Updated Git HEAD: {}".format(value.current[:12]))
                 QMessageBox.information(
                     self, "Git update completed",
-                    "New upstream commits were fast-forwarded successfully.\n"
+                    "git pull completed successfully.\n"
                     "Restart twrpdtgen-NEXT and rerun setup if dependencies changed.")
 
         def task_failed(self, error):

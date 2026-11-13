@@ -53,7 +53,7 @@ when current, ahead, diverged, dirty, or when Git is unavailable.
 The Tk fallback and Android browser GUI enforce the same check-first rule.
 Running `twrpdtgen-update --apply` when already up to date exits with an
 explicit informative error rather than implying that an update happened.
-No Git merge or checkout runs in that case.
+No git pull, merge or checkout runs in that case.
 
 ## PyQt5 desktop GUI and safe Git updater
 
@@ -78,8 +78,8 @@ Windows: `launcher.cmd --check-updates` / `launcher.cmd --update`.
 The Android localhost browser GUI also offers check/update controls.
 
 The updater requires an actual Git checkout, a configured upstream branch,
-no changed or untracked files, and no divergent local commits. It only
-fast-forwards after an explicit choice. It never silently changes source,
+no changed or untracked files, and no divergent local commits. It runs plain `git pull` only after a check confirms it is behind
+upstream, has no local changes, and the user explicitly approves. It never silently changes source,
 executes a destructive reset, or modifies device partitions. A pip wheel
 without the `.git` checkout cannot update itself via Git; clone the project
 or use regular package upgrade mechanisms. Restart after a successful update.

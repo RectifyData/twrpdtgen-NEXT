@@ -73,7 +73,7 @@ edits, or has ahead/diverged commits. It only enables after a successful
 check reports a clean, behind-only tracking branch.
 
 The updater itself also rejects `--apply` on an up-to-date checkout;
-it does not invoke `git merge`, `git checkout`, `git reset` or `git stash`
+it does not invoke `git pull`, `git merge`, `git checkout`, `git reset` or `git stash`
 when no new commits exist. The Tk fallback and Android browser GUI follow
 the same enabled/disabled logic. Rechecking is required after errors.
 
@@ -101,7 +101,7 @@ falls back to Tk if installation fails.
 
 The **Git updater** checks the checkout's configured tracking branch,
 fetches its latest upstream commits, and only applies an explicitly
-confirmed `git merge --ff-only` to a clean checkout:
+confirmed `git pull` on a clean checkout:
 
 ```bash
 twrpdtgen-update --check
