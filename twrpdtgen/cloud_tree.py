@@ -7,14 +7,9 @@ from __future__ import annotations
 from argparse import ArgumentParser
 from dataclasses import dataclass
 from pathlib import Path
-import os
-import shutil
-import stat
 import sys
 import tempfile
-import time
 from typing import Iterable, Optional
-import zipfile
 
 from twrpdtgen.cloud_slice import (
     CloudSliceError,
@@ -23,6 +18,7 @@ from twrpdtgen.cloud_slice import (
     slice_firmware,
 )
 from twrpdtgen.next_support import NextOptions, parse_partition_size
+from twrpdtgen.tree_archive import archive_tree
 
 
 @dataclass(frozen=True)
@@ -32,97 +28,8 @@ class CloudTreeResult:
     archive: Path
 
 
-def _zip_symlink(
-        bundle: zipfile.ZipFile,
-        source: Path,
-        arcname: str) -> None:
-    """Store a POSIX symlink as a real ZIP symlink entry."""
-    st = source.lstat()
-    info = zipfile.ZipInfo(
-        arcname,
-        time.localtime(max(st.st_mtime, 315532800))[:6],
-    )
-    info.create_system = 3
-    info.compress_type = zipfile.ZIP_STORED
-    info.external_attr = (
-        (stat.S_IFLNK | stat.S_IMODE(st.st_mode)) << 16
-    )
-    info.external_attr |= 0x20
-    target = os.readlink(source)
-    bundle.writestr(info, target.encode("utf-8", errors="surrogateescape"))
-
-
-def _archive_tree(
-        tree: Path,
-        archive: Path,
-        *,
-        include_stock_root: bool = False) -> Path:
-    """Create a source-oriented ZIP while preserving Unix symlink metadata."""
-    tree = Path(tree)
-    archive = Path(archive)
-    if not tree.is_dir():
-        raise FileNotFoundError(f"Generated tree does not exist: {tree}")
-    archive.parent.mkdir(parents=True, exist_ok=True)
-    if archive.suffix.lower() != ".zip":
-        archive = archive.with_suffix(".zip")
-    archive.unlink(missing_ok=True)
-
-    manufacturer = tree.parent.name
-    prefix = Path(manufacturer) / tree.name
-
-    def skipped(relative: Path) -> bool:
-        if include_stock_root:
-            return False
-        parts = relative.parts
-        return (
-            len(parts) >= 2
-            and parts[0] == "recovery"
-            and parts[1] == "stock-root"
-        )
-
-    with zipfile.ZipFile(
-            archive,
-            "w",
-            compression=zipfile.ZIP_DEFLATED,
-            compresslevel=9,
-            allowZip64=True) as bundle:
-        for root, dirs, files in os.walk(
-                tree, topdown=True, followlinks=False):
-            root_path = Path(root)
-            relative_root = root_path.relative_to(tree)
-
-            kept_dirs = []
-            for name in sorted(dirs):
-                path = root_path / name
-                relative = relative_root / name
-                if skipped(relative):
-                    continue
-                arcname = (prefix / relative).as_posix()
-                if path.is_symlink():
-                    _zip_symlink(bundle, path, arcname)
-                    continue
-                kept_dirs.append(name)
-                # Retain empty/source directories and their Unix mode.
-                info = zipfile.ZipInfo.from_file(
-                    path,
-                    arcname + "/",
-                )
-                bundle.writestr(info, b"")
-            dirs[:] = kept_dirs
-
-            for name in sorted(files):
-                path = root_path / name
-                relative = relative_root / name
-                if skipped(relative):
-                    continue
-                arcname = (prefix / relative).as_posix()
-                if path.is_symlink():
-                    _zip_symlink(bundle, path, arcname)
-                else:
-                    bundle.write(path, arcname)
-
-    return archive
-
+# Backward-compatible private alias used by existing callers/tests.
+_archive_tree = archive_tree
 
 def generate_tree_from_image(
         image: Path,
