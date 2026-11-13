@@ -39,7 +39,7 @@ class LocalWebGUITests(unittest.TestCase):
         with self.request("/") as res:
             page = res.read().decode()
             self.assertIn("viewport", page)
-            self.assertIn("Recovery Tree Studio", page)
+            self.assertIn("<h1>twrpdtgen NEXT</h1>", page)
             self.assertIn('id="cliSyncedOptions"', page)
             self.assertIn('fetch("/api/options"', page)
             self.assertIn('id="gitApply" disabled', page)
