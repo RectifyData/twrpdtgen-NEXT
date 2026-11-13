@@ -144,15 +144,15 @@ def _safe_zip_images(
             for info in bundle.infolist()
             if not info.is_dir()
         }
-        try:
-            selected = _choose_archive_members(infos)
-        except EasyModeError:
-            nested = [
-                name for name in infos
-                if PurePosixPath(name).name.lower().endswith(".zip")
-            ]
-            if len(nested) != 1 or depth >= 2:
-                raise
+        nested = [
+            name for name in infos
+            if PurePosixPath(name).name.lower().endswith(".zip")
+        ]
+        direct_preferred = [
+            name for name in infos
+            if _is_recovery_payload(name)
+        ]
+        if not direct_preferred and len(nested) == 1 and depth < 2:
             nested_path = destination / ".twrpdtgen-nested.zip"
             with bundle.open(infos[nested[0]]) as src, nested_path.open("wb") as dst:
                 shutil.copyfileobj(src, dst, 1024 * 1024)
@@ -165,6 +165,7 @@ def _safe_zip_images(
             finally:
                 nested_path.unlink(missing_ok=True)
 
+        selected = _choose_archive_members(infos)
         for name in selected:
             with bundle.open(infos[name]) as src:
                 _extract_payload_stream(src, name, destination)
@@ -186,15 +187,15 @@ def _safe_tar_images(archive: Path, destination: Path) -> int:
             for member in bundle.getmembers()
             if member.isfile()
         }
-        try:
-            selected = _choose_archive_members(members)
-        except EasyModeError:
-            nested = [
-                name for name in members
-                if PurePosixPath(name).name.lower().endswith(".zip")
-            ]
-            if len(nested) != 1:
-                raise
+        nested = [
+            name for name in members
+            if PurePosixPath(name).name.lower().endswith(".zip")
+        ]
+        direct_preferred = [
+            name for name in members
+            if _is_recovery_payload(name)
+        ]
+        if not direct_preferred and len(nested) == 1:
             nested_path = destination / ".twrpdtgen-nested.zip"
             stream = bundle.extractfile(members[nested[0]])
             if stream is None:
@@ -212,6 +213,7 @@ def _safe_tar_images(archive: Path, destination: Path) -> int:
             finally:
                 nested_path.unlink(missing_ok=True)
 
+        selected = _choose_archive_members(members)
         for name in selected:
             stream = bundle.extractfile(members[name])
             if stream is None:
