@@ -40,13 +40,16 @@ The core generator is OEM-neutral. For phones where you already have the
 required recovery/boot images, use
 **[colab/generic_image_to_tree.ipynb](colab/generic_image_to_tree.ipynb)**.
 
-That notebook accepts a classic `recovery.img` or modern split combinations
-using `boot.img`, `vendor_boot.img` and `init_boot.img`. It invokes the same
-normal generator CLI used on Linux and Windows, then creates a symlink-safe ZIP
-with `python -m twrpdtgen.tree_archive`.
+That notebook is now **upload-and-run**: select the images and NEXT automatically recognizes standard `recovery.img`, `boot.img`, `vendor_boot.img`, and `init_boot.img` names (including `_a` / `_b` slot variants), chooses the primary recovery source, adds companions, generates the tree, and downloads the symlink-safe ZIP. No image filenames need to be typed.
 
 Samsung FUS support is an optional acquisition path, not a requirement of the
 generator. See **[docs/generic-colab.md](docs/generic-colab.md)**.
+
+The same zero-typing discovery is available from the command line:
+
+~~~bash
+python3 -m twrpdtgen.auto_tree ./images -o ./output --archive twrp-device-tree.zip --overwrite
+~~~
 
 ## Cloud-assisted Samsung firmware slicing
 
