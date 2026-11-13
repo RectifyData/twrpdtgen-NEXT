@@ -13,6 +13,34 @@ device-tree skeletons from classic and split Android boot images.
 - Run `python3 -m twrpdtgen --help` (or the equivalent through a launcher) for
   the current generator CLI arguments.
 
+## Easy Mode — recommended standalone use
+
+For normal use, you should not need to remember commands or type image names.
+
+**Windows:** double-click `launcher.cmd`. NEXT opens a native picker. Choose a
+recovery/boot `.img`, a ZIP containing Android images, or cancel the file
+picker to choose a folder. You can also drag an image, ZIP, or folder directly
+onto `launcher.cmd`.
+
+**Linux/desktop:** run `./launcher.sh` with no arguments. NEXT opens a picker
+when a graphical desktop is available, or gives a drag-and-drop path prompt in
+a terminal.
+
+**Installed package:** run `twrpdtgen` or `twrpdtgen-easy` with no arguments.
+
+Easy Mode automatically:
+
+- recognizes standard recovery/boot image roles and A/B slot filenames;
+- gathers matching nearby companion images when you select one standard image;
+- accepts folders and ZIP archives;
+- ignores non-image ZIP contents and blocks unsafe ZIP paths;
+- creates a portable device-tree ZIP automatically;
+- avoids overwriting old output by choosing numbered output names;
+- prints plain-language hints for common input/layout failures.
+
+Advanced flags remain available through the normal CLI, but they are not
+required for the common path.
+
 ## Modern Android image support
 
 NEXT parses the AOSP image structures used by current Android releases:
