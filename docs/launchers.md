@@ -9,6 +9,61 @@ platforms where they run:
 Both launchers bootstrap the dependencies they need and then forward normal
 arguments to `python -m twrpdtgen`.
 
+## Easiest standalone use
+
+For the common path, do not type the long commands shown later in this guide.
+
+### Windows
+
+Double-click `launcher.cmd`. NEXT opens a native picker. Choose:
+
+- a recovery/boot `.img`;
+- a Samsung/Odin-style `.img.lz4`;
+- a ZIP containing Android images;
+- a TAR/TAR.MD5 package containing recovery/boot images; or
+- a folder containing the images.
+
+You can also drag one of those files/folders directly onto `launcher.cmd`.
+When one standard image is selected, NEXT automatically looks for matching
+nearby companions such as `boot.img`, `vendor_boot.img`, and
+`init_boot.img`. A/B slot selection is kept on the chosen slot instead of
+mixing `_a` and `_b` companions.
+
+The Windows launcher stays open after Easy Mode finishes so the output path or
+error remains visible.
+
+### Linux desktop/terminal
+
+Run:
+
+~~~bash
+./launcher.sh
+~~~
+
+A graphical picker is used when available. Otherwise NEXT gives a terminal
+prompt where a file/folder path can be pasted or dragged in.
+
+### Installed Python package
+
+Run either:
+
+~~~bash
+twrpdtgen
+~~~
+
+or:
+
+~~~bash
+twrpdtgen-easy
+~~~
+
+With no arguments, both enter Easy Mode.
+
+Easy Mode protects previous work by creating numbered output names instead of
+silently overwriting it. It also extracts only recovery/boot-related images
+from large firmware archives when standard filenames are present, avoiding a
+pointless full system/vendor extraction.
+
 ## Quick start
 
 ### Google Colab
@@ -351,8 +406,12 @@ This installs/checks dependencies and prints the ready-to-use examples.
 
 ### Run with no arguments
 
-Running either launcher with no image prints usage examples after bootstrap.
-On Linux/Colab, the no-argument path also performs the environment doctor.
+On a normal local machine, running the launcher with no arguments enters Easy
+Mode. Windows opens the native picker; Linux uses a graphical picker when
+available and otherwise a terminal drag/drop prompt.
+
+Google Colab and non-interactive Linux invocations keep the setup/usage output
+behavior instead of waiting for local user input.
 
 ## What each launcher installs
 
