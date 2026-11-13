@@ -77,6 +77,7 @@ button:disabled{opacity:.5;cursor:wait}
 <small>twrpdtgen-NEXT __VERSION__ · Android / Windows / Linux</small></div>
 <div class="tools"><button id="toolsButton" aria-haspopup="true" aria-expanded="false">⋮ Tools</button>
 <div id="toolsPane"><button id="copyLogs">Copy logs</button><button id="toggleAdvanced">Advanced settings</button>
+<button id="checkGitMenu">Check Git updates</button><button id="applyGitMenu">Update from Git…</button>
 <button id="about">About & safety</button></div></div></header>
 <main>
 <div class="grid">
@@ -139,13 +140,18 @@ button:disabled{opacity:.5;cursor:wait}
 <pre id="log" aria-label="Job log">No job running.</pre>
 <p class="note">This tool makes candidate recovery sources only. It never flashes your device. Actual recovery placement, partition capacity, bootability, SELinux, AVB, and decryption require verification.</p>
 </section>
+<section class="card"><h2>Git updater</h2>
+<div class="actions"><button id="gitCheck">Check for updates</button>
+<button id="gitApply">Update from Git…</button></div>
+<p id="gitResult" class="note" role="status">Checks the configured Git tracking branch. Updates require confirmation, preserve modified files, and are fast-forward only.</p>
+</section>
 </main>
 <script>
 "use strict";
 const csrf=__TOKEN__;
 const el=id=>document.getElementById(id);
 const fields=["source","output","archive","boot_image","vendor_boot","init_boot","skeleton","recovery_layout","recovery_root_mode","recovery_fragment","boot_size","recovery_size","super_size","dynamic_group_size"];
-let polling=null,active=false;
+let polling=null,active=false,gitBusy=false;
 let syncedExtras=[];
 async function loadSharedOptions(){
  const response=await fetch("/api/options",{cache:"no-store"});
@@ -201,7 +207,7 @@ el("toggleAdvanced").onclick=()=>{let a=el("advanced");a.style.display=a.style.d
 el("copyLogs").onclick=async()=>{await navigator.clipboard.writeText(el("log").textContent);tools(false)};
 el("about").onclick=()=>{tools(false);alert("twrpdtgen-NEXT is an offline recovery source-tree generator. Generated trees and inferred partition sizes are not proof of flash safety.")};
 function status(s){el("status").textContent=s}
-function working(on){active=on;el("generate").disabled=on;el("extract").disabled=on;el("progress").style.display=on?"block":"none"}
+function working(on){active=on;el("generate").disabled=on;el("extract").disabled=on;el("gitCheck").disabled=on||gitBusy;el("gitApply").disabled=on||gitBusy;el("progress").style.display=on?"block":"none"}
 async function upload(input,name){
 const file=el(input).files[0];if(!file)return null;
 status("Uploading "+file.name+" to the local generator...");
@@ -262,6 +268,24 @@ try{
  await poll();
 }catch(e){status("Error: "+e.message);working(false);stopPoll()}
 }
+async function gitAction(kind){
+ if(active||gitBusy)return;
+ if(kind==="apply"&&!confirm("Fetch and fast-forward the Git checkout? Local edits, untracked files and diverged commits will not be overwritten. Restart the app afterward."))return;
+ gitBusy=true;working(active);
+ el("gitResult").textContent=kind==="check"?"Fetching remote Git updates…":"Applying confirmed fast-forward…";
+ try{
+  const result=await send("/api/git/"+kind,kind==="apply"?{confirmed:true}:{});
+  const updated=result.available?"New upstream commits: "+result.behind:"No new upstream commits";
+  const block=result.dirty||result.ahead?" — update blocked: local edits or ahead commits":"";
+  el("gitResult").textContent=(kind==="apply"?"Git HEAD: "+result.current.slice(0,12)+". Restart application. ":
+    updated+". ")+result.branch+" → "+result.upstream+block;
+ }catch(error){el("gitResult").textContent="Git updater: "+error.message}
+ finally{gitBusy=false;working(active)}
+}
+el("gitCheck").onclick=()=>gitAction("check");
+el("gitApply").onclick=()=>gitAction("apply");
+el("checkGitMenu").onclick=()=>{tools(false);gitAction("check")};
+el("applyGitMenu").onclick=()=>{tools(false);gitAction("apply")};
 el("generate").onclick=()=>start("tree");
 el("extract").onclick=()=>start("extract");
 </script></body></html>"""
@@ -278,6 +302,7 @@ class WebState:
         self.logs = []
         self.download = None
         self.thread = None
+        self.updating = False
 
     def append(self, value):
         with self.lock:
@@ -294,8 +319,8 @@ class WebState:
 
     def start(self, job):
         with self.lock:
-            if self.status == "running":
-                raise RuntimeError("Another generation job is still running")
+            if self.status == "running" or self.updating:
+                raise RuntimeError("Another generation or Git update is running")
             self.status = "running"
             self.message = "Preparing source images"
             self.logs = []
@@ -474,7 +499,35 @@ class WebHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not self._check(changing=True):
             return
-        if urlsplit(self.path).path != "/api/start":
+        endpoint = urlsplit(self.path).path
+        if endpoint in ("/api/git/check", "/api/git/apply"):
+            state = self.server.state
+            try:
+                values = self._read_json()
+                if endpoint.endswith("/apply") and values.get("confirmed") is not True:
+                    raise ValueError("Git update requires explicit confirmation")
+                with state.lock:
+                    if state.updating or state.status == "running":
+                        raise RuntimeError("Cannot update Git while generation or another update is running")
+                    state.updating = True
+                try:
+                    from twrpdtgen.git_updater import check_updates, apply_update
+                    result = (apply_update(confirmed=True)
+                              if endpoint.endswith("/apply")
+                              else check_updates())
+                finally:
+                    with state.lock:
+                        state.updating = False
+            except RuntimeError as exc:
+                self._json(409, {"error": str(exc)})
+                return
+            except (ValueError, FileNotFoundError, TypeError,
+                    json.JSONDecodeError) as exc:
+                self._json(400, {"error": str(exc)})
+                return
+            self._json(200, result.to_dict())
+            return
+        if endpoint != "/api/start":
             self._json(404, {"error": "Unknown endpoint"})
             return
         try:

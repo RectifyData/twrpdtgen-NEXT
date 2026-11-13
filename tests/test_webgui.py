@@ -108,6 +108,44 @@ class LocalWebGUITests(unittest.TestCase):
                          b"bad", headers)
         self.assertEqual(exc.exception.code, 400)
 
+    def test_git_updater_requires_token_confirmation_and_clean_state(self):
+        from twrpdtgen.git_updater import UpdateStatus
+        status = UpdateStatus(
+            root="/tmp/checkout", branch="main", upstream="origin/main",
+            current="a" * 40, latest="b" * 40,
+            ahead=0, behind=1, dirty=False)
+        headers = {"X-CSRF-Token": self.state.token,
+                   "Content-Type": "application/json"}
+        with self.assertRaises(HTTPError) as exc:
+            self.request("/api/git/check", "POST", b"{}")
+        self.assertEqual(exc.exception.code, 403)
+        with self.assertRaises(HTTPError) as exc:
+            self.request("/api/git/apply", "POST", b"{}", headers)
+        self.assertEqual(exc.exception.code, 400)
+        with patch("twrpdtgen.git_updater.check_updates",
+                   return_value=status) as check:
+            with self.request("/api/git/check", "POST", b"{}", headers) as res:
+                value = json.load(res)
+                self.assertTrue(value["can_apply"])
+                self.assertEqual(value["behind"], 1)
+                check.assert_called_once()
+        with patch("twrpdtgen.git_updater.apply_update",
+                   return_value=status) as apply:
+            with self.request(
+                    "/api/git/apply", "POST",
+                    json.dumps({"confirmed": True}).encode(), headers) as res:
+                self.assertEqual(json.load(res)["branch"], "main")
+                apply.assert_called_once_with(confirmed=True)
+
+    def test_git_update_rejected_during_generation(self):
+        headers = {"X-CSRF-Token": self.state.token,
+                   "Content-Type": "application/json"}
+        with self.state.lock:
+            self.state.status = "running"
+        with self.assertRaises(HTTPError) as exc:
+            self.request("/api/git/check", "POST", b"{}", headers)
+        self.assertEqual(exc.exception.code, 409)
+
     def test_generation_returns_only_created_zip(self):
         input_file = self.state.workspace / "recovery.img"
         input_file.write_bytes(b"stock")

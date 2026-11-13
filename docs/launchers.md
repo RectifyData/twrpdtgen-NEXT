@@ -42,6 +42,35 @@ If a future CLI argument has an unsupported structure, automated regression
 checks fail rather than silently dropping functionality. Extend the adapter
 for such actions before publishing.
 
+## PyQt5 desktop GUI and safe Git updater
+
+PyQt5 is the preferred desktop GUI when installed; Tk remains the fallback.
+Install the optional dependency with `python -m pip install -e '.[qt]'`
+from a checkout, then start `twrpdtgen-qt` or `twrpdtgen-gui`.
+Force the Tk fallback with `twrpdtgen-gui --tk`.
+Both desktop GUIs show source selection, options synced with CLI, and Git
+update buttons. The Windows launcher attempts optional PyQt5 installation
+with visible pip progress before starting GUI mode.
+
+The standalone Git updater is `twrpdtgen-update`, or:
+
+```sh
+twrpdtgen-update --check
+twrpdtgen-update --apply
+./launcher.sh --check-updates
+./launcher.sh --update
+```
+
+Windows: `launcher.cmd --check-updates` / `launcher.cmd --update`.
+The Android localhost browser GUI also offers check/update controls.
+
+The updater requires an actual Git checkout, a configured upstream branch,
+no changed or untracked files, and no divergent local commits. It only
+fast-forwards after an explicit choice. It never silently changes source,
+executes a destructive reset, or modifies device partitions. A pip wheel
+without the `.git` checkout cannot update itself via Git; clone the project
+or use regular package upgrade mechanisms. Restart after a successful update.
+
 ## GUI and CLI entry points
 
 Windows GUI: `launcher.cmd` or `launcher.cmd --gui`.

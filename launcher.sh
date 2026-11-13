@@ -49,6 +49,15 @@ install_system_dependencies() {
     "${apt[@]}" install -y --no-install-recommends "${missing[@]}"
 }
 
+install_optional_qt() {
+    [[ "${TWRPDTGEN_SKIP_PIP:-0}" == "1" ]] && return 0
+    if ! "$PYTHON_BIN" -c 'import PyQt5.QtWidgets' >/dev/null 2>&1; then
+        log "Installing optional PyQt5 desktop interface (Tk remains fallback)..."
+        "$PYTHON_BIN" -m pip install 'PyQt5>=5.15.9,<6' ||
+            log "PyQt5 could not be installed; the Tk frontend is still available."
+    fi
+}
+
 install_python_dependencies() {
     [[ "${TWRPDTGEN_SKIP_PIP:-0}" == "1" ]] && return 0
     log "Installing twrpdtgen-NEXT from this clone..."
@@ -113,6 +122,8 @@ Launcher commands:
 Desktop GUI: ./launcher.sh --gui [--source IMAGE]
 Android/browser GUI: ./launcher.sh --web [--port 8765]
 CLI: ./launcher.sh --cli [IMAGE and options]
+Git check: ./launcher.sh --check-updates
+Git update: ./launcher.sh --update
 All other arguments are passed directly to python3 -m twrpdtgen.
 The -o/--output directory does not need to exist beforehand.
 EOF
@@ -120,6 +131,14 @@ EOF
 
 main() {
     check_python
+    if [[ "${1:-}" == "--check-updates" ]]; then
+        export PYTHONPATH="$ROOT_DIR${PYTHONPATH:+:$PYTHONPATH}"
+        exec "$PYTHON_BIN" -m twrpdtgen.git_updater --check
+    fi
+    if [[ "${1:-}" == "--update" ]]; then
+        export PYTHONPATH="$ROOT_DIR${PYTHONPATH:+:$PYTHONPATH}"
+        exec "$PYTHON_BIN" -m twrpdtgen.git_updater --apply
+    fi
     if is_colab; then log "Google Colab detected."; else log "Linux bootstrap mode."; fi
     if [[ -n "${TERMUX_VERSION:-}" || "${PREFIX:-}" == *"com.termux"* ]]; then
         log "Termux detected: using Python-native extraction without apt bootstrap."
@@ -135,6 +154,7 @@ main() {
             ;;
         --gui)
             shift
+            install_optional_qt
             export PYTHONPATH="$ROOT_DIR${PYTHONPATH:+:$PYTHONPATH}"
             exec "$PYTHON_BIN" -m twrpdtgen.gui "$@"
             ;;
@@ -158,6 +178,7 @@ main() {
                 return 0
             fi
             if [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; then
+                install_optional_qt
                 exec "$PYTHON_BIN" -m twrpdtgen.gui
             fi
             exec "$PYTHON_BIN" -m twrpdtgen.easy

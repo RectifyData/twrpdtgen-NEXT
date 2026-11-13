@@ -60,9 +60,50 @@ Unsupported complex argparse shapes fail CI instead of silently disappearing:
 their adapter must be updated before release. Source trees remain unverified
 for bootability and physical flash partition capacity.
 
+## PyQt5 desktop GUI + Git updater
+
+**PyQt5 is now the preferred Windows/Linux desktop frontend**, with the
+existing Tk GUI as a fallback. The Qt interface includes a dark theme,
+floating Tools menu, file and companion-image pickers, tree/ZIP extraction
+controls, CLI-synchronized settings, visible progress logs, and Git updater.
+The CLI and Android browser UI remain available unchanged.
+
+From a local Git checkout:
+
+```bash
+python -m pip install -e '.[qt]'
+twrpdtgen-qt
+twrpdtgen-gui        # automatically prefers PyQt5 if available
+twrpdtgen-gui --tk   # explicitly select the Tk fallback
+```
+
+The Qt package is optional so Android/Termux and command-line installations
+do not have to install Qt libraries. Double-clicking the Windows launcher
+attempts a **visible** installation of optional PyQt5 once when missing and
+falls back to Tk if installation fails.
+
+The **Git updater** checks the checkout's configured tracking branch,
+fetches its latest upstream commits, and only applies an explicitly
+confirmed `git merge --ff-only` to a clean checkout:
+
+```bash
+twrpdtgen-update --check
+twrpdtgen-update --apply
+# Also available: launcher.cmd --check-updates / --update
+# Linux: ./launcher.sh --check-updates / --update
+```
+
+Both desktop GUIs have *Check for updates* and *Update from Git* buttons,
+and the Android local browser GUI offers the same functions. An update
+**never** force-resets or stashes user changes. Dirty checkouts, branches
+with local commits, detached HEADs, and non-Git installs are rejected.
+Restart the application after updating; re-run visible dependency setup
+if requirements changed. Updates are not checked or applied silently
+in the background, and do not flash Android partitions.
+
 ## Desktop GUI and independent CLI
 
-Windows and Linux now have a full Tk GUI with file/folder and companion-image
+Windows and Linux now have a PyQt5-preferred GUI with Tk fallback and companion-image
 pickers, recovery layout, TWRP profile and ramdisk settings, partition size
 fields, ZIP output, live logs and a floating Tools menu. The GUI runs locally
 and **never flashes a device**.
@@ -78,7 +119,7 @@ python3 -m twrpdtgen recovery.img -o output
 twrpdtgen-gui --source recovery.img
 ```
 
-The GUI requires Python tkinter and a graphical desktop. Android Termux
+The desktop GUI requires PyQt5 or tkinter and a graphical desktop. Android Termux
 can use the local browser GUI or CLI; Tk itself needs X11 on Android.
 
 ## Easy Mode — recommended standalone use

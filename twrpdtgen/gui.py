@@ -353,6 +353,9 @@ class NextWindow:
         menu.add_command(label="Open output folder", command=self._open_output)
         menu.add_command(label="Copy logs", command=self._copy_logs)
         menu.add_separator()
+        menu.add_command(label="Check Git updates", command=self._check_updates)
+        menu.add_command(label="Update from Git…", command=self._apply_update)
+        menu.add_separator()
         menu.add_command(label="About and safety", command=self._about)
         self.tools_button["menu"] = menu
 
@@ -491,6 +494,23 @@ class NextWindow:
             checks, text="Safety: Generated source is not validated for booting or flashing.",
             wraplength=760).pack(anchor="w", pady=(6, 0))
 
+        updater = ttk.LabelFrame(
+            body, text="Git updater (source checkouts)",
+            style="Section.TLabelframe")
+        updater.pack(fill="x", padx=4, pady=8)
+        update_row = ttk.Frame(updater)
+        update_row.pack(fill="x")
+        self.update_check_button = ttk.Button(
+            update_row, text="Check for updates", command=self._check_updates)
+        self.update_check_button.pack(side="left")
+        self.update_apply_button = ttk.Button(
+            update_row, text="Update from Git…", command=self._apply_update)
+        self.update_apply_button.pack(side="left", padx=10)
+        ttk.Label(updater, text=(
+            "Checks the configured upstream; refuses modified files or "
+            "diverged branches. An update requires confirmation and restart."
+        ), wraplength=740).pack(anchor="w", pady=(7, 0))
+
         footer = ttk.Frame(root, padding=(14, 7))
         footer.pack(fill="x", side="bottom")
         actions = ttk.Frame(footer)
@@ -597,6 +617,46 @@ class NextWindow:
         }
         return result
 
+    def _check_updates(self):
+        self._start_update("check")
+
+    def _apply_update(self):
+        self._start_update("apply")
+
+    def _start_update(self, mode):
+        from tkinter import messagebox
+        if self.busy:
+            return
+        if mode == "apply" and not messagebox.askyesno(
+                "Confirm Git update",
+                "Fetch and fast-forward the source checkout from its "
+                "configured upstream?\n\nLocal edits and diverged "
+                "commits will be protected. Restart after updating.",
+                parent=self.root):
+            return
+        self.busy = True
+        self.go.configure(state="disabled")
+        self.update_check_button.configure(state="disabled")
+        self.update_apply_button.configure(state="disabled")
+        self.progress.start(14)
+        self.status.set("Checking Git upstream..." if mode == "check"
+                        else "Applying confirmed fast-forward...")
+        worker = threading.Thread(
+            target=self._update_worker, args=(mode,), daemon=True)
+        worker.start()
+        self.root.after(100, self._poll)
+
+    def _update_worker(self, mode):
+        try:
+            from twrpdtgen.git_updater import check_updates, apply_update
+            status = (
+                check_updates() if mode == "check"
+                else apply_update(confirmed=True))
+            self.events.put(("update-check" if mode == "check"
+                             else "update-done", status))
+        except Exception as exc:
+            self.events.put(("error", "{}: {}".format(type(exc).__name__, exc)))
+
     def _start(self):
         from tkinter import messagebox
         if self.busy:
@@ -614,6 +674,8 @@ class NextWindow:
         self.busy = True
         self.result = None
         self.go.configure(state="disabled")
+        self.update_check_button.configure(state="disabled")
+        self.update_apply_button.configure(state="disabled")
         self.progress.start(14)
         self.status.set("Working — see log below")
         self._message("")
@@ -643,7 +705,29 @@ class NextWindow:
                     self.busy = False
                     self.progress.stop()
                     self.go.configure(state="normal")
-                    if kind == "done":
+                    self.update_check_button.configure(state="normal")
+                    self.update_apply_button.configure(state="normal")
+                    if kind == "update-check":
+                        self._message(
+                            "Upstream {}: {} behind, {} ahead, dirty={}."
+                            .format(value.upstream, value.behind,
+                                    value.ahead, value.dirty))
+                        self.status.set(
+                            "Update available" if value.can_apply
+                            else "Resolve local edits/divergence" if value.available
+                            else "Already up to date")
+                    elif kind == "update-done":
+                        self._message(
+                            "Git HEAD now {}. Restart the application; "
+                            "rerun setup if dependencies changed."
+                            .format(value.current[:12]))
+                        self.status.set("Git update completed")
+                        messagebox.showinfo(
+                            "Git updater",
+                            "Source checkout updated safely.\n"
+                            "Restart twrpdtgen-NEXT to load the new code.",
+                            parent=self.root)
+                    elif kind == "done":
                         self.result = value
                         self.status.set("Completed — source generated; flash safety not verified")
                         self._message("Completed successfully.")
@@ -678,6 +762,8 @@ def main(argv=None):
     parser.add_argument('input', nargs='?', type=Path,
                         help='optional source image/folder')
     parser.add_argument('--gui', action='store_true', help=argparse.SUPPRESS)
+    parser.add_argument('--tk', action='store_true',
+                        help='force legacy Tk interface instead of PyQt5')
     parser.add_argument(
         "--source", type=Path,
         help="prefill the firmware source image/archive/folder")
@@ -685,6 +771,15 @@ def main(argv=None):
         "--output", type=Path,
         help="prefill the generated tree destination")
     args = parser.parse_args(argv)
+    if not args.tk:
+        from twrpdtgen.qtgui import qt_available, main as qt_main
+        if qt_available():
+            options = []
+            if args.source or args.input:
+                options += ["--source", str(args.source or args.input)]
+            if args.output:
+                options += ["--output", str(args.output)]
+            return qt_main(options)
     if not can_launch_gui():
         parser.exit(
             2, "GUI unavailable. Install Tk and start a graphical desktop, "

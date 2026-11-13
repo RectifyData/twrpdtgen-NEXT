@@ -14,6 +14,8 @@ call :check_python || exit /b 1
 if /I "%~1"=="--doctor" goto doctor
 if /I "%~1"=="--self-test" goto self_test
 if /I "%~1"=="--setup-only" goto setup_only
+if /I "%~1"=="--check-updates" goto updater_check
+if /I "%~1"=="--update" goto updater_apply
 
 call :ensure_python_deps || exit /b 1
 
@@ -28,6 +30,13 @@ exit /b %RC%
 
 :gui_mode
 set "PYTHONPATH=%ROOT_DIR%;%PYTHONPATH%"
+rem PyQt5 is optional; show installer output and fall back to Tk if unavailable.
+%PYTHON_CMD% -c "import PyQt5.QtWidgets" >nul 2>&1
+if errorlevel 1 (
+    echo [twrpdtgen-NEXT] Installing optional PyQt5 desktop interface...
+    %PYTHON_CMD% -m pip install "PyQt5>=5.15.9,<6"
+    if errorlevel 1 echo [twrpdtgen-NEXT] PyQt5 unavailable, using Tk fallback.
+)
 %PYTHON_CMD% -m twrpdtgen.gui %*
 set "RC=%ERRORLEVEL%"
 exit /b %RC%
@@ -37,6 +46,16 @@ set "PYTHONPATH=%ROOT_DIR%;%PYTHONPATH%"
 %PYTHON_CMD% -m twrpdtgen.webgui
 set "RC=%ERRORLEVEL%"
 exit /b %RC%
+
+:updater_check
+set "PYTHONPATH=%ROOT_DIR%;%PYTHONPATH%"
+%PYTHON_CMD% -m twrpdtgen.git_updater --check
+exit /b %ERRORLEVEL%
+
+:updater_apply
+set "PYTHONPATH=%ROOT_DIR%;%PYTHONPATH%"
+%PYTHON_CMD% -m twrpdtgen.git_updater --apply
+exit /b %ERRORLEVEL%
 
 :find_python
 python -c "import sys" >nul 2>&1
@@ -121,6 +140,8 @@ echo.
 echo Launcher commands:
 echo   launcher.cmd --gui
 echo   launcher.cmd --web
+echo   launcher.cmd --check-updates
+echo   launcher.cmd --update
 echo   launcher.cmd --cli [IMAGE...]
 echo   launcher.cmd --doctor
 echo   launcher.cmd --self-test
