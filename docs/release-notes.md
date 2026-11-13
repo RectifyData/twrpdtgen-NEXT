@@ -1,37 +1,33 @@
-# twrpdtgen-NEXT 3.1.0a14 — stock brightness policy
+# twrpdtgen-NEXT 3.1.0a15 — vendor-neutral Colab and tree export
 
-The A20s generated-tree audit continued after 3.1.0a13 fixed recovery-overlay
-installation.
+This prerelease makes NEXT's multi-device scope explicit and usable without
+Samsung FUS while retaining the 3.1.0a14 stock-brightness and partition-size
+fixes already present on master.
 
-The inspected SM-A207F stock recovery contains an explicit init write to
-`/sys/class/backlight/panel0-backlight/brightness` with value `200`. That
-device-specific recovery policy was directly observable but NEXT previously
-discarded it, leaving TWRP to locate a brightness node on its own.
+Changes:
 
-Fixes in 3.1.0a14:
+- Adds `colab/generic_image_to_tree.ipynb`, a vendor-neutral Colab workflow for
+  uploaded recovery/boot images from Samsung, Google, Xiaomi, OnePlus,
+  Motorola, Sony, Nothing, ASUS, Fairphone and other Android devices supported
+  by the parser.
+- Supports dedicated `recovery.img`, recovery-as-boot, and split modern input
+  sets with optional `boot.img`, `vendor_boot.img`, and `init_boot.img`.
+- Adds `python -m twrpdtgen.tree_archive`, a generic generated-tree ZIP
+  exporter that preserves Unix symlinks, enables ZIP64, and excludes
+  `recovery/stock-root` by default.
+- Refactors Samsung cloud-tree generation to use that same generic archiver, so
+  ZIP behavior is no longer implemented inside Samsung-specific download code.
+- Adds direct regression coverage using a non-Samsung `google/husky` tree.
+- Adds notebook tests ensuring the generic workflow does not depend on
+  samloader or a Samsung model.
+- CI validates both Colab notebooks and the vendor-neutral tree-archive CLI.
+- Adds documentation separating the OEM-neutral generator from Samsung-only
+  FUS firmware acquisition.
 
-- Scans selected stock recovery init RC files for explicit
-  `write .../brightness <number>` commands.
-- Emits `TW_BRIGHTNESS_PATH` only when exactly one stock brightness node is
-  unambiguous, and emits `TW_DEFAULT_BRIGHTNESS` only when startup actions
-  agree on one positive value.
-- Does not guess `TW_MAX_BRIGHTNESS`; TWRP can read the sibling
-  `max_brightness` node at runtime and already has a fallback.
-- Ignores shutdown/property-triggered values when choosing a startup default,
-  and refuses to select between multiple different brightness paths.
-- Generated READMEs now explicitly warn Samsung dedicated-recovery users that
-  image trailer, Odin tar, and verified-boot packaging remain device-specific.
-- Adds regression coverage for root and nested init RC brightness detection and
-  rendered BoardConfig output.
-- Fixes the partition-size parser/documentation mismatch: CLI and Colab size
-  fields now actually accept binary `KiB`, `MiB`, and `GiB` suffixes such
-  as `64MiB`, in addition to decimal and hexadecimal byte counts.
+The core generator is image-driven rather than phone-list-driven. OEM signing,
+AVB, encryption, SELinux, display/input quirks, USB configuration, partition
+geometry and OEM-specific image wrappers remain target-validation work and are
+not guessed.
 
-The audit still leaves A20s-specific work that cannot be safely inferred from
-this recovery image alone: TWRP backup/flash fstab policy, removable
-microSD/USB-OTG flags, Qualcomm RTC/platform extras, cutout offsets, Samsung
-image trailer/Odin packaging, and any custom USB/ueventd/touch-firmware files
-not present in stock recovery.
-
-**Experimental source generator prerelease.** Build and hardware validation are
-still required before flashing.
+**Experimental source generator prerelease.** Generated trees still require a
+real build and target-device validation before flashing.

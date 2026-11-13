@@ -8,9 +8,8 @@ device-tree skeletons from classic and split Android boot images.
 - **[Launcher guide](docs/launchers.md)** — complete Windows CMD, PowerShell,
   Linux and Google Colab setup/usage, command reference, examples and
   troubleshooting.
-- **[Cloud firmware slicing + full Colab generation](docs/cloud-firmware-slicing.md)** —
-  download Samsung firmware from FUS in the cloud, return only one image, or
-  continue directly into a complete twrpdtgen device-tree generation.
+- **[Vendor-neutral Colab generation](docs/generic-colab.md)** — upload Android boot/recovery images from any supported OEM and generate a tree without Samsung FUS.
+- **[Samsung cloud firmware slicing + generation](docs/cloud-firmware-slicing.md)** — download Samsung firmware from FUS in the cloud, return only one image, or continue directly into device-tree generation.
 - Run `python3 -m twrpdtgen --help` (or the equivalent through a launcher) for
   the current generator CLI arguments.
 
@@ -34,6 +33,20 @@ unpack/repack/unpack pipeline while keeping the original image metadata in a
 machine-readable manifest. When the generated output and extraction workspace
 share a filesystem, stock-root uses hardlinks instead of rewriting every
 regular file, with an automatic copy fallback across filesystems.
+
+## Vendor-neutral Colab workflow
+
+The core generator is OEM-neutral. For phones where you already have the
+required recovery/boot images, use
+**[colab/generic_image_to_tree.ipynb](colab/generic_image_to_tree.ipynb)**.
+
+That notebook accepts a classic `recovery.img` or modern split combinations
+using `boot.img`, `vendor_boot.img` and `init_boot.img`. It invokes the same
+normal generator CLI used on Linux and Windows, then creates a symlink-safe ZIP
+with `python -m twrpdtgen.tree_archive`.
+
+Samsung FUS support is an optional acquisition path, not a requirement of the
+generator. See **[docs/generic-colab.md](docs/generic-colab.md)**.
 
 ## Cloud-assisted Samsung firmware slicing
 
