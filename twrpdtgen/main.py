@@ -138,6 +138,10 @@ def build_parser():
         "--dynamic-group-size",
         type=parse_partition_size,
         help="verified dynamic group size in bytes or KiB/MiB/GiB")
+    parser.add_argument("--vendor-root", type=Path)
+    parser.add_argument("--odm-root", type=Path)
+    parser.add_argument("--skeleton-only", action="store_true",
+                        help="legacy skeleton output for debugging")
     parser.add_argument(
         "--overwrite",
         action="store_true",
@@ -195,6 +199,9 @@ def execute_cli_job(args, *, direct=False):
             and args.recovery_size is None
             and args.super_size is None
             and args.dynamic_group_size is None
+            and args.vendor_root is None
+            and args.odm_root is None
+            and not args.skeleton_only
             and not args.git):
         from twrpdtgen.easy import generate_easy
         try:
@@ -239,7 +246,10 @@ def execute_cli_job(args, *, direct=False):
         boot_image=args.boot_image,
         vendor_boot=args.vendor_boot,
         init_boot=args.init_boot,
-        recovery_fragment=args.recovery_fragment)
+        recovery_fragment=args.recovery_fragment,
+        vendor_root=args.vendor_root,
+        odm_root=args.odm_root,
+        complete=not args.skeleton_only)
     try:
         folder = device_tree.dump_to_folder(
             args.output,

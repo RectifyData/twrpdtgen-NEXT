@@ -129,6 +129,9 @@ def generate_from_directory(
         dynamic_group_size: Optional[int] = None,
         overwrite: bool = False,
         include_stock_root: bool = False,
+        vendor_root: Optional[Path] = None,
+        odm_root: Optional[Path] = None,
+        complete: bool = True,
 ):
     """Auto-discover images, run DeviceTree, then create the portable ZIP."""
     from twrpdtgen.device_tree import DeviceTree
@@ -167,6 +170,9 @@ def generate_from_directory(
             else None
         ),
         recovery_fragment=recovery_fragment,
+        vendor_root=vendor_root,
+        odm_root=odm_root,
+        complete=complete,
     )
     try:
         tree = generator.dump_to_folder(
@@ -230,6 +236,9 @@ def build_parser() -> ArgumentParser:
     parser.add_argument("--dynamic-group-size", type=parse_partition_size)
     parser.add_argument("--overwrite", action="store_true")
     parser.add_argument("--include-stock-root", action="store_true")
+    parser.add_argument("--vendor-root", type=Path)
+    parser.add_argument("--odm-root", type=Path)
+    parser.add_argument("--skeleton-only", action="store_true")
     return parser
 
 
@@ -253,6 +262,9 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
             dynamic_group_size=args.dynamic_group_size,
             overwrite=args.overwrite,
             include_stock_root=args.include_stock_root,
+            vendor_root=args.vendor_root,
+            odm_root=args.odm_root,
+            complete=not args.skeleton_only,
         )
     except (
             FileNotFoundError,

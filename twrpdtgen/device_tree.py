@@ -73,13 +73,19 @@ class DeviceTree:
             boot_image: Path = None,
             vendor_boot: Path = None,
             init_boot: Path = None,
-            recovery_fragment: str = None):
+            recovery_fragment: str = None,
+            vendor_root: Path = None,
+            odm_root: Path = None,
+            complete: bool = True):
         self.image = Path(image)
         self.options = options or NextOptions()
         self.current_year = str(datetime.now().year)
         self.aik_manager = None
         self.modern_manager = None
         self.recovery_fragment = recovery_fragment
+        self.vendor_root = vendor_root
+        self.odm_root = odm_root
+        self.complete = complete
         self._legacy_ramdisk_root = None
 
         if not self.image.is_file():
@@ -644,6 +650,18 @@ class DeviceTree:
             json.dumps(report, indent=2, sort_keys=True) + "\n",
             encoding="utf-8")
 
+        if self.complete:
+            from twrpdtgen.full_tree import complete_generated_tree
+            geometry = {}
+            for name, size in (("boot", self.options.boot_size),
+                               ("recovery", self.options.recovery_size)):
+                if size is not None:
+                    geometry[name] = {
+                        "bytes": size,
+                        "source": "User-supplied capacity (not independently verified)"}
+            complete_generated_tree(device_tree_folder,
+                                    vendor_root=self.vendor_root,
+                                    odm_root=self.odm_root, geometry=geometry)
         if not git:
             return device_tree_folder
 
