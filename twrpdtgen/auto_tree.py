@@ -131,6 +131,7 @@ def generate_from_directory(
         include_stock_root: bool = False,
         vendor_root: Optional[Path] = None,
         odm_root: Optional[Path] = None,
+        partition_roots: Optional[Dict[str, Path]] = None,
         complete: bool = True,
 ):
     """Auto-discover images, run DeviceTree, then create the portable ZIP."""
@@ -172,6 +173,7 @@ def generate_from_directory(
         recovery_fragment=recovery_fragment,
         vendor_root=vendor_root,
         odm_root=odm_root,
+        partition_roots=partition_roots,
         complete=complete,
     )
     try:
@@ -182,11 +184,8 @@ def generate_from_directory(
     finally:
         generator.cleanup()
 
-    bundle = archive_tree(
-        tree,
-        Path(archive),
-        include_stock_root=include_stock_root,
-    )
+    bundle = (archive_tree(tree, Path(archive), include_stock_root=include_stock_root)
+              if archive is not None else None)
     return images, tree, bundle
 
 

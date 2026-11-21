@@ -1,0 +1,66 @@
+name: tdtnext Python module prerelease
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'pyproject.toml'
+      - 'twrpdtgen/**'
+      - 'tests/test_firmware_input.py'
+      - 'tests/test_full_tree_import.py'
+      - 'tests/test_tdtnext_command.py'
+      - 'tests/test_tool_bootstrap.py'
+      - 'tests/test_cross_platform_tools.py'
+      - 'install-windows.cmd'
+      - 'scripts/setup_windows.ps1'
+      - '.github/workflows/tdtnext-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  regression:
+    name: Python regression (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install test requirements
+        run: python -m pip install "lz4>=4.3,<5"
+      - name: Run automated tests
+        run: python -m unittest discover -s tests -p test_*.py -v
+
+  package-and-release:
+    needs: regression
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Build Python wheel and source distribution
+        run: |
+          python -m pip install build
+          python -m build --outdir dist
+      - name: Publish experimental prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          TAG=v3.1.0a32
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "Release already exists for $TAG"
+            exit 0
+          fi
+          gh release create "$TAG" dist/* \
+            --target "$GITHUB_SHA" \
+            --title "twrpdtgen-NEXT 3.1.0a32 - tdtnext cross-platform dependencies" \
+            --prerelease \
+            --notes "Firmware ZIP/TAR handling with automatic dependency provisioning on Windows/WSL and Linux. Recovery source is not verified flashable."

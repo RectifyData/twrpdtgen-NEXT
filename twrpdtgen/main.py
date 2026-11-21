@@ -65,8 +65,17 @@ def _extract_only(args):
 def build_parser():
     """Single authoritative generator CLI schema used by all frontends."""
     parser = ArgumentParser(
-        prog="python3 -m twrpdtgen")
+        prog=("tdtnext" if __import__("sys").argv[0].lower().endswith(("tdtnext", "tdtnext.exe"))
+              else "python3 -m twrpdtgen"))
     _add_image_arguments(parser)
+    parser.add_argument('--input', type=Path, metavar='FIRMWARE',
+                        help='full stock firmware folder, Motorola/Google ZIP or Samsung AP TAR.MD5')
+    parser.add_argument('--allow-partial', action='store_true',
+                        help='retain partial tree if optional firmware extraction tools are missing')
+    parser.add_argument('--no-auto-install', action='store_true',
+                        help='never install missing firmware extraction dependencies')
+    parser.add_argument('--setup-tools', action='store_true',
+                        help='check/install extraction resources now (Windows supports WSL)')
     parser.add_argument(
         "-o",
         "--output",
@@ -176,8 +185,42 @@ class CLIExecutionResult:
 
 def execute_cli_job(args, *, direct=False):
     """Run one CLI job. direct=True skips Easy Mode re-discovery for staged GUI inputs."""
+    if args.setup_tools:
+        if args.image is not None or args.input is not None:
+            raise ValueError('--setup-tools does not accept a firmware input')
+        from twrpdtgen.tool_bootstrap import install_all_tools
+        installed = install_all_tools(auto_install=not args.no_auto_install)
+        for name, provenance in installed.items():
+            print(name + ': ' + provenance)
+        return CLIExecutionResult()
     # The legacy unpacker dependencies are required only for actual CLI
     # generation, not to display --help or bring up a GUI.
+    if args.input is not None:
+        if not args.input.expanduser().exists():
+            raise FileNotFoundError('Firmware input does not exist: ' + str(args.input))
+        try:
+            from sebaubuntu_libs.liblogging import setup_logging
+        except ImportError as exc:
+            raise RuntimeError('Missing twrpdtgen dependencies; install with python -m pip install .') from exc
+        setup_logging(args.debug)
+        if args.image is not None:
+            raise ValueError('Choose either --input FIRMWARE or positional IMAGE')
+        if args.extract_only or args.extract_to:
+            raise ValueError('--input does not support boot-component-only extraction')
+        from twrpdtgen.tdtnext import run_firmware_job
+        tree, archive = run_firmware_job(
+            args.input, args.output, allow_partial=args.allow_partial,
+            overwrite=args.overwrite, skeleton=args.skeleton,
+            recovery_layout=args.recovery_layout,
+            recovery_root_mode=args.recovery_root_mode,
+            recovery_fragment=args.recovery_fragment,
+            boot_size=args.boot_size, recovery_size=args.recovery_size,
+            super_size=args.super_size, dynamic_group_size=args.dynamic_group_size,
+            skeleton_only=args.skeleton_only,
+            auto_install=not args.no_auto_install)
+        print('Generated recovery tree: ' + str(tree))
+        print('Portable archive: ' + str(archive))
+        return CLIExecutionResult(tree=tree, archive=archive)
     from sebaubuntu_libs.liblogging import setup_logging
     setup_logging(args.debug)
     from twrpdtgen.easy import SUPPORTED_IMAGE_NAMES
@@ -292,7 +335,7 @@ def main(*, cli_only=False):
         from twrpdtgen.gui import main as gui_main
         return gui_main(
             ["--source", str(args.image)] if args.image else [])
-    if args.image is None:
+    if args.image is None and args.input is None and not args.setup_tools:
         if cli_only or args.cli:
             parser.print_help()
             return 0
@@ -308,8 +351,14 @@ def main(*, cli_only=False):
         from twrpdtgen.easy import main as easy_main
         return easy_main([])
 
+    if args.input is not None or args.setup_tools:
+        from twrpdtgen.firmware_input import FirmwareInputError
+        from twrpdtgen.full_tree import CompletionError
+        try:
+            return execute_cli_job(args)
+        except (FirmwareInputError, CompletionError, ValueError, RuntimeError, OSError) as exc:
+            parser.error(str(exc))
     return execute_cli_job(args)
-
 
 
 

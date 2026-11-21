@@ -20,7 +20,8 @@ RECOVERY_DEPENDENCIES = (
     "vendor/lib64/modules", "odm/firmware", "odm/etc/firmware",
     "odm/etc/init", "odm/etc/vintf", "odm/lib/modules",
     "odm/lib64/modules", "vendor_dlkm/lib/modules",
-    "odm_dlkm/lib/modules", "lib/modules", "lib64/modules",
+    "odm_dlkm/lib/modules", "system_dlkm/lib/modules", "system_ext/etc/vintf",
+    "system_ext/etc/init", "lib/modules", "lib64/modules",
 )
 BOARD_SIZES = {
     "boot": "BOARD_BOOTIMAGE_PARTITION_SIZE",
@@ -79,7 +80,8 @@ def _dependencies(root, prefix=""):
     return found
 
 
-def complete_tree(tree, output, *, vendor_root=None, odm_root=None, geometry=None):
+def complete_tree(tree, output, *, vendor_root=None, odm_root=None,
+                  partition_roots=None, geometry=None):
     """Copy and enrich a generated tree without overwriting its source.
 
     geometry entries: {"recovery":{"bytes":67108864,"source":"GPT dump"}}.
@@ -113,14 +115,24 @@ def complete_tree(tree, output, *, vendor_root=None, odm_root=None, geometry=Non
         collected = _dependencies(stock) if stock.is_dir() else []
         collected += _dependencies(vendor_root, "vendor")
         collected += _dependencies(odm_root, "odm")
-        seen = set()
-        for source, relative in collected:
-            if relative in seen:
+        for role, root in (partition_roots or {}).items():
+            if role not in ("vendor", "odm", "vendor_dlkm", "odm_dlkm", "system_dlkm", "system_ext"):
+                raise CompletionError("Unsupported extracted partition role: " + str(role))
+            if role == "vendor" and vendor_root is not None:
                 continue
-            seen.add(relative)
+            if role == "odm" and odm_root is not None:
+                continue
+            collected += _dependencies(root, role)
+        seen = {}
+        for source, relative in collected:
+            digest = _digest(source)
+            if relative in seen:
+                if seen[relative] != digest:
+                    raise CompletionError('Conflicting stock and extracted firmware dependency: ' + relative.as_posix())
+                continue
+            seen[relative] = digest
             target = _safe(overlay, relative)
             target.parent.mkdir(parents=True, exist_ok=True)
-            digest = _digest(source)
             if target.exists():
                 if not target.is_file() or _digest(target) != digest:
                     raise CompletionError("Conflicting dependency: " + relative.as_posix())
@@ -173,7 +185,8 @@ def complete_tree(tree, output, *, vendor_root=None, odm_root=None, geometry=Non
     return audit
 
 
-def complete_generated_tree(tree, *, vendor_root=None, odm_root=None, geometry=None):
+def complete_generated_tree(tree, *, vendor_root=None, odm_root=None,
+                            partition_roots=None, geometry=None):
     """Transactionally enrich a generated tree without changing its path."""
     tree = Path(tree).resolve()
     target = tree.parent / ("." + tree.name + ".fulltree")
@@ -181,7 +194,8 @@ def complete_generated_tree(tree, *, vendor_root=None, odm_root=None, geometry=N
     if target.exists() or backup.exists() or target.is_symlink() or backup.is_symlink():
         raise CompletionError("Temporary/backup path is already present")
     report = complete_tree(tree, target, vendor_root=vendor_root,
-                           odm_root=odm_root, geometry=geometry)
+                           odm_root=odm_root, partition_roots=partition_roots,
+                           geometry=geometry)
     os.replace(tree, backup)
     try:
         os.replace(target, tree)

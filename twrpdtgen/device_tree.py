@@ -76,6 +76,7 @@ class DeviceTree:
             recovery_fragment: str = None,
             vendor_root: Path = None,
             odm_root: Path = None,
+            partition_roots=None,
             complete: bool = True):
         self.image = Path(image)
         self.options = options or NextOptions()
@@ -85,6 +86,7 @@ class DeviceTree:
         self.recovery_fragment = recovery_fragment
         self.vendor_root = vendor_root
         self.odm_root = odm_root
+        self.partition_roots = partition_roots or {}
         self.complete = complete
         self._legacy_ramdisk_root = None
 
@@ -661,7 +663,9 @@ class DeviceTree:
                         "source": "User-supplied capacity (not independently verified)"}
             complete_generated_tree(device_tree_folder,
                                     vendor_root=self.vendor_root,
-                                    odm_root=self.odm_root, geometry=geometry)
+                                    odm_root=self.odm_root,
+                                    partition_roots=self.partition_roots,
+                                    geometry=geometry)
         if not git:
             return device_tree_folder
 
