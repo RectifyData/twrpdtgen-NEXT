@@ -19,7 +19,7 @@ class LauncherTests(unittest.TestCase):
         proc = subprocess.run([sys.executable, str(ROOT / "tdtnext.py"), "--version"],
                               capture_output=True, text=True, timeout=20)
         self.assertEqual(proc.returncode, 0, proc.stderr)
-        self.assertIn("3.1.0a32", proc.stdout)
+        self.assertIn("3.1.0a33", proc.stdout)
 
 if __name__ == "__main__":
     unittest.main()

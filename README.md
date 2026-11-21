@@ -15,6 +15,10 @@ Or use `sh tdtnext --input ... --output ...` on Linux.
 On Windows use `py tdtnext.py --input "C:\\firmware\\AP.tar.md5" --output "C:\\TWRPTrees"`.
 On first actual generation, the launcher creates a private `.tdtnext-venv`,
 installs the Python project with visible progress, and launches it.
+On Colab, where `ensurepip` may fail, it automatically retries using a pip-free
+virtual environment and `python3 -m pip --python` to install only into that
+environment. Previously failed, partially created environments are reused.
+The source is installed editable, so `git pull --ff-only` updates take effect.
 It does not install global packages or silently change the system PATH.
 `--help` and `--version` work immediately without installation. If Python's
 venv support is absent, install `python3-venv` using your Linux distribution.
