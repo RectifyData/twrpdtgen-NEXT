@@ -30,6 +30,16 @@ A generated recovery source tree is not verified buildable or bootable.
 A modernized, safety-oriented evolution of twrpdtgen for generating TWRP
 device-tree skeletons from classic and split Android boot images.
 
+## Android 17 vendor_boot v4 recovery source fix
+
+Pixel 11 Pro Fold (`yogi`) factory firmware can include several vendor ramdisk
+fragments without a typed RECOVERY entry. NEXT now combines only non-conflicting,
+board-neutral sources. It records board-specific fragments as unresolved rather
+than mixing potentially incompatible hardware variants. When necessary, it can
+generate an **unverified generic-only candidate** using init_boot and extracted
+vendor/odm fstab data. See `generation-report.json`. This is not a verified
+bootable recovery image.
+
 ## Documentation
 
 - **[Launcher guide](docs/launchers.md)** — complete Windows CMD, PowerShell,

@@ -42,6 +42,7 @@ from twrpdtgen.ramdisk_skeleton import (
     write_ramdisk_manifest,
 )
 from twrpdtgen.templates import render_template
+from twrpdtgen.vendor_ramdisk import plan_untyped_vendor_fragments
 
 
 BUILDPROP_LOCATIONS = [
@@ -124,19 +125,43 @@ class DeviceTree:
 
         LOGD("Getting device infos...")
         self.build_prop = BuildProp()
-        for root in self.ramdisk_roots:
+        # Do not derive identity from unverified board-specific variants.
+        if self.modern_manager is not None:
+            property_roots = []
+            for parsed in self.image_info.source_images:
+                if parsed.kind != "vendor_boot":
+                    property_roots.extend(parsed.ramdisk_roots)
+                else:
+                    property_roots.extend(
+                        fragment.root for fragment in parsed.vendor_ramdisk_fragments
+                        if fragment.ramdisk_type in (0, 1)
+                        and not any(fragment.board_id))
+        else:
+            property_roots = list(self.ramdisk_roots)
+        for role in ("system", "system_ext", "odm", "vendor"):
+            root = self.partition_roots.get(role)
+            if root is not None and Path(root).is_dir():
+                property_roots.append(Path(root))
+        for root in property_roots:
             for location in BUILDPROP_LOCATIONS:
                 build_prop = root / location
                 if build_prop.is_file():
                     self.build_prop.import_props(
                         build_prop)
 
+        # In extracted images, build.prop may sit directly at the partition root.
+        for role in ("vendor", "odm", "system", "system_ext"):
+            root = self.partition_roots.get(role)
+            if root is not None:
+                build_prop = Path(root) / "build.prop"
+                if build_prop.is_file():
+                    self.build_prop.import_props(build_prop)
+
         self.device_info = DeviceInfo(self.build_prop)
         safe_component(self.device_info.manufacturer)
         safe_component(self.device_info.codename)
 
-        self.android_api = detect_android_api(
-            self.ramdisk_roots)
+        self.android_api = detect_android_api(property_roots)
         self.skeleton = resolve_skeleton(
             self.options.skeleton,
             self.android_api)
@@ -185,17 +210,26 @@ class DeviceTree:
             if self.options.recovery_root_mode != "auto"
             else "minimal")
 
-        fstab_roots = list(
-            self.recovery_ramdisk_roots)
-        fstab_roots += [
-            root for root in self.ramdisk_roots
-            if root not in fstab_roots
-        ]
-        fstab_location = find_recovery_fstab(
-            fstab_roots)
+        # Exclude skipped board variants from fstab discovery, then use the
+        # extracted stock vendor/odm filesystems when present.
+        fstab_roots = list(self.recovery_ramdisk_roots)
+        if self.modern_manager is not None:
+            for parsed in self.image_info.source_images:
+                if parsed.kind != "vendor_boot":
+                    fstab_roots.extend(root for root in parsed.ramdisk_roots
+                                       if root not in fstab_roots)
+        else:
+            fstab_roots.extend(root for root in self.ramdisk_roots
+                               if root not in fstab_roots)
+        for role in ("vendor", "odm", "system"):
+            root = self.partition_roots.get(role)
+            if root is not None and Path(root).is_dir():
+                fstab_roots.append(Path(root))
+        fstab_location = find_recovery_fstab(fstab_roots)
         if fstab_location is None:
             raise ValueError(
-                "No stock fstab found in extracted ramdisks")
+                "No stock fstab found in selected ramdisks or extracted "
+                "vendor/odm partitions. Supply verified firmware files.")
         self.stock_fstab_path = Path(fstab_location)
         self.observed_filesystems = detect_stock_filesystem_types(
             self.stock_fstab_path)
@@ -408,33 +442,30 @@ class DeviceTree:
                 "Their board_id encoding is vendor-defined, so automatic "
                 f"selection would be unsafe. Use --recovery-fragment with: {choices}")
 
-        # v3 has one untyped vendor ramdisk. Some v4 devices also merge
-        # recovery resources into one default PLATFORM/NONE fragment instead of
-        # creating a RECOVERY fragment. One such source is unambiguous; several
-        # board-specific fragments are not.
-        candidates = [
-            fragment for fragment in fragments
-            if fragment.ramdisk_type in (0, 1)
-        ]
-        if len(candidates) == 1:
-            selected = candidates[0]
-            return with_init_boot([selected.root], {
-                "kind": "vendor_boot_merged_recovery",
+        # Android vendor_boot v4 may carry several PLATFORM/DLKM fragments
+        # without any typed RECOVERY fragment. Only include unconstrained
+        # fragments that can be overlaid without conflicting files.
+        selected, plan = plan_untyped_vendor_fragments(
+            fragments, allow_generic_fallback=bool(init_roots))
+        if selected:
+            return with_init_boot([fragment.root for fragment in selected], {
+                "kind": "vendor_boot_composed_shared_fragments",
                 "image": vendor_image.source.name,
-                "fragment_index": selected.index,
-                "fragment_name": selected.name,
-                "fragment_type": selected.type_name,
-                "board_id": list(selected.board_id),
+                **plan,
+                "warning": "Common vendor fragments composed; recovery boot unverified",
             })
-        if len(vendor_image.ramdisk_roots) == 1:
-            return with_init_boot(vendor_image.ramdisk_roots, {
-                "kind": "vendor_boot_merged_recovery",
-                "image": vendor_image.source.name,
+        if init_roots:
+            return with_init_boot([], {
+                "kind": "init_boot_generic_with_unresolved_vendor_fragments",
+                "image": init_image.source.name,
+                "vendor_boot_image": vendor_image.source.name,
+                **plan,
+                "warning": "Board-specific vendor fragments unresolved; generic-only "
+                           "recovery source is not device-ready",
             })
         raise ValueError(
-            "vendor_boot has no typed RECOVERY fragment and multiple possible "
-            "vendor ramdisks. Automatic merging could select the wrong board "
-            "variant; pass --recovery-fragment after checking manifest.json.")
+            "vendor_boot has no safely selectable recovery fragments "
+            "and no init_boot generic ramdisk.")
 
     def dump_to_folder(
             self,

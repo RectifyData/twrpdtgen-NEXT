@@ -67,6 +67,19 @@ def run_firmware_job(input_path: Path, output: Path, *, allow_partial: bool = Fa
                 target.parent.mkdir(exist_ok=True)
                 shutil.copy2(original, target)
         write_firmware_audit(tree, firmware)
+        # Unresolved board-specific resources are important to surface even
+        # when the candidate source tree is successfully generated.
+        import json
+        report_path = Path(tree) / 'generation-report.json'
+        if report_path.is_file():
+            report = json.loads(report_path.read_text(encoding='utf-8'))
+            source = report.get('ramdisk_source', {})
+            for warning in source.get('warnings', []):
+                print('[tdtnext] WARNING: ' + warning, flush=True)
+            if source.get('kind') == 'init_boot_generic_with_unresolved_vendor_fragments':
+                print('[tdtnext] WARNING: Generic-only candidate. The selected '
+                      'vendor_boot board variant remains unknown. Do not flash.',
+                      flush=True)
         print('Creating source archive (recovery image is not built)', flush=True)
         # Package after writing the firmware provenance manifest.
         archive_tree(tree, archive, include_stock_root=False)

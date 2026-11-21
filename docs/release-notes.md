@@ -1,20 +1,18 @@
-# twrpdtgen-NEXT 3.1.0a28 — clean cloud slicer notebook
+# twrpdtgen-NEXT 3.1.0a34 — Pixel/Android 17 vendor_boot recovery fix
 
-Source-only prerelease. Generated trees still require hardware validation.
+**Experimental source preview.** No bootable recovery image is included.
 
-- Removed orphaned variable references from the cloud firmware slicer's third
-  **code** cell: keep-firmware, stock-root ZIP checkbox, extra image download,
-  and undefined partition geometry fields. The stale "all broken" warning was
-  removed as well.
-- Restored the actual two-mode form: extract an image or generate a TWRP tree.
-  Keep the existing image-only default; both paths run in fresh subprocesses.
-- Split `tool_version` from optional Samsung `firmware_version` to prevent
-  passing twrpdtgen's version to samloader as a firmware build number.
-- Use `git pull` in the notebook setup cell, matching the Git updater UI.
-- Validate subprocess completion and output-file existence before offering a
-  browser download. Cleaned old execution numbers/outputs from committed cells.
-- Updated notebook, documentation and automated tests to catch undefined
-  configuration values and exercise both workflows.
+The generator now distinguishes universal vendor_boot v4 PLATFORM/NONE/DLKM
+fragments from OEM-specific board variants instead of aborting immediately
+when no typed RECOVERY fragment exists. Conflicting common files are not
+silently combined. Excluded board-specific fragments are recorded in the
+generated metadata, and the import can fall back to generic init_boot plus an
+extracted vendor/odm stock fstab with explicit warnings.
 
-Open the latest `colab/cloud_firmware_slice.ipynb` from master to obtain
-these changes. This release does not include a bootable recovery image.
+Reported with Google Pixel 11 Pro Fold (yogi), Android 17 QPR2 factory package
+\`yogi_beta-cp41.260831.019-factory-d1d1450f.zip\`.
+
+Regression coverage includes variant exclusion, conflict detection, fallback,
+original typed-fragment selection, and stock partition fstab lookup. The real
+firmware ZIP was not supplied in this session for a full end-to-end retest.
+Device-specific boot, encryption, SELinux, and signing remain unverified.
