@@ -89,3 +89,5 @@ dmypy.json
 # editors
 .idea/
 .vscode/
+# Local bootstrap environment
+.tdtnext-venv/

@@ -5,6 +5,9 @@ on:
     branches: [master]
     paths:
       - 'pyproject.toml'
+      - 'tdtnext.py'
+      - 'tdtnext'
+      - 'tests/test_repo_launcher.py'
       - 'twrpdtgen/**'
       - 'tests/test_firmware_input.py'
       - 'tests/test_full_tree_import.py'
@@ -35,7 +38,9 @@ jobs:
       - name: Install test requirements
         run: python -m pip install "lz4>=4.3,<5"
       - name: Run automated tests
-        run: python -m unittest discover -s tests -p test_*.py -v
+        run: |
+          python tdtnext.py --help
+          python -m unittest discover -s tests -p test_*.py -v
 
   package-and-release:
     needs: regression

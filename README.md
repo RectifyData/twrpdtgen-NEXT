@@ -1,5 +1,28 @@
 # twrpdtgen-NEXT
 
+## Clone, enter, run (no manual pip installation)
+
+Python 3.9+ is the only prerequisite for the repository launcher. On Linux:
+
+```sh
+git clone https://github.com/RectifyData/twrpdtgen-NEXT.git
+cd twrpdtgen-NEXT
+python3 tdtnext.py --help
+python3 tdtnext.py --input ~/Downloads/stock-firmware.zip --output ~/TWRPTrees
+```
+
+Or use `sh tdtnext --input ... --output ...` on Linux.
+On Windows use `py tdtnext.py --input "C:\\firmware\\AP.tar.md5" --output "C:\\TWRPTrees"`.
+On first actual generation, the launcher creates a private `.tdtnext-venv`,
+installs the Python project with visible progress, and launches it.
+It does not install global packages or silently change the system PATH.
+`--help` and `--version` work immediately without installation. If Python's
+venv support is absent, install `python3-venv` using your Linux distribution.
+Firmware filesystem dependencies are detected and provisioned on demand.
+
+A generated recovery source tree is not verified buildable or bootable.
+
+
 A modernized, safety-oriented evolution of twrpdtgen for generating TWRP
 device-tree skeletons from classic and split Android boot images.
 
