@@ -7,8 +7,8 @@ Python 3.9+ is the only prerequisite for the repository launcher. On Linux:
 ```sh
 git clone https://github.com/RectifyData/twrpdtgen-NEXT.git
 cd twrpdtgen-NEXT
-python3 tdtnext.py --help
-python3 tdtnext.py --input ~/Downloads/stock-firmware.zip --output ~/TWRPTrees
+./tdtnext --help
+./tdtnext --input ~/Downloads/stock-firmware.zip --output ~/TWRPTrees
 ```
 
 Or use `sh tdtnext --input ... --output ...` on Linux.
@@ -35,6 +35,23 @@ device-tree skeletons from classic and split Android boot images.
 - **[Samsung cloud firmware slicing + generation](docs/cloud-firmware-slicing.md)** — download Samsung firmware from FUS in the cloud, return only one image, or continue directly into device-tree generation.
 - Run `python3 -m twrpdtgen --help` (or the equivalent through a launcher) for
   the current generator CLI arguments.
+
+### Google Colab (reuse an existing checkout)
+
+In Colab, run this cell instead of cloning every time:
+
+```python
+%cd /content
+!test -d twrpdtgen-NEXT/.git && git -C twrpdtgen-NEXT pull --ff-only || git clone https://github.com/RectifyData/twrpdtgen-NEXT.git
+%cd /content/twrpdtgen-NEXT
+!sh tdtnext --help
+```
+
+`!sh tdtnext` works even when the download does not preserve executable
+permissions. After the executable-bit workflow has completed, `!./tdtnext`
+also works directly. **Do not run `sh tdtnext.py`**: it is Python code.
+On Unix, the bare name `tdtnext` requires the command to be installed on
+`PATH`; the cloned directory is deliberately not on `PATH` by default.
 
 ## Android-friendly browser GUI
 

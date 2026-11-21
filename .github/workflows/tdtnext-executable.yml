@@ -1,0 +1,36 @@
+name: Keep Linux tdtnext launcher executable
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'tdtnext'
+      - '.github/workflows/tdtnext-executable.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  executable:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Verify direct executable and commit POSIX mode
+        run: |
+          set -euo pipefail
+          chmod +x tdtnext
+          ./tdtnext --help > /dev/null
+          ./tdtnext --version
+          git update-index --chmod=+x tdtnext
+          if git diff --cached --quiet; then
+            echo "Launcher is already executable in Git."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Fix Linux tdtnext executable permission"
+          git push origin HEAD:master
