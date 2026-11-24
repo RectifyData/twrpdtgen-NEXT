@@ -61,13 +61,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -e
-          TAG=v3.1.0a34
+          VERSION="$(python -c 'from twrpdtgen import __version__; print(__version__)')"
+          TAG="v${VERSION}"
           if gh release view "$TAG" > /dev/null 2>&1; then
             echo "Release already exists for $TAG"
             exit 0
           fi
           gh release create "$TAG" dist/* \
             --target "$GITHUB_SHA" \
-            --title "twrpdtgen-NEXT 3.1.0a34 - Android 17 vendor_boot fix" \
+            --title "twrpdtgen-NEXT ${VERSION} (source preview)" \
             --prerelease \
-            --notes "Firmware ZIP/TAR handling with automatic dependency provisioning on Windows/WSL and Linux. Recovery source is not verified flashable."
+            --notes-file docs/release-notes.md

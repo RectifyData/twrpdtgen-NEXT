@@ -139,6 +139,7 @@ def fetch_and_generate_tree(
             member=member,
             overwrite=overwrite,
         )
+        print('[cloud-tree] Generating recovery source tree...', flush=True)
         tree = generate_tree_from_image(
             sliced.output,
             tree_output,
@@ -152,6 +153,7 @@ def fetch_and_generate_tree(
             dynamic_group_size=dynamic_group_size,
             overwrite=overwrite,
         )
+        print('[cloud-tree] Packaging source ZIP...', flush=True)
         archive_path = _archive_tree(
             tree,
             archive,

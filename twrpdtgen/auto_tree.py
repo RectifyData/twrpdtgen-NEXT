@@ -137,6 +137,7 @@ def generate_from_directory(
     """Auto-discover images, run DeviceTree, then create the portable ZIP."""
     from twrpdtgen.device_tree import DeviceTree
 
+    print(f'[auto-tree] Detecting images in {input_dir}...', flush=True)
     images = discover_images(input_dir)
     options = NextOptions(
         skeleton=skeleton,
@@ -150,6 +151,7 @@ def generate_from_directory(
     )
 
     primary = images.primary
+    print(f'[auto-tree] Selected {primary.name}; extracting recovery resources...', flush=True)
     generator = DeviceTree(
         image=primary,
         options=options,
@@ -177,6 +179,7 @@ def generate_from_directory(
         complete=complete,
     )
     try:
+        print('[auto-tree] Writing device tree...', flush=True)
         tree = generator.dump_to_folder(
             Path(tree_output),
             git=False,
@@ -184,6 +187,8 @@ def generate_from_directory(
     finally:
         generator.cleanup()
 
+    if archive is not None:
+        print('[auto-tree] Packaging source ZIP...', flush=True)
     bundle = (archive_tree(tree, Path(archive), include_stock_root=include_stock_root)
               if archive is not None else None)
     return images, tree, bundle

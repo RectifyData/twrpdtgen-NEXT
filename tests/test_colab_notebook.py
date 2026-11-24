@@ -77,6 +77,12 @@ class ColabNotebookTests(unittest.TestCase):
                         definitions.add(node.id)
                     elif isinstance(node.ctx, ast.Load):
                         used.add(node.id)
+                elif isinstance(node, ast.arg):
+                    definitions.add(node.arg)
+                elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    definitions.add(node.name)
+                elif isinstance(node, ast.ExceptHandler) and node.name:
+                    definitions.add(node.name)
                 elif isinstance(node, (ast.Import, ast.ImportFrom)):
                     for alias in node.names:
                         definitions.add(
@@ -97,8 +103,7 @@ class ColabNotebookTests(unittest.TestCase):
         downloads = []
         commands = []
 
-        def run_command(cmd, *, check):
-            self.assertTrue(check)
+        def run_command(cmd):
             commands.append(cmd)
             self.assertEqual(cmd[0], sys.executable)
             if "twrpdtgen.cloud_slice" in cmd:
@@ -135,12 +140,12 @@ class ColabNotebookTests(unittest.TestCase):
                 "partition": "recovery", "package": "AP", "threads": 8,
                 "firmware_version": "", "skeleton": "auto",
                 "recovery_layout": "auto", "recovery_root_mode": "minimal",
-                "tool_version": "3.1.0a99", "next_python": sys.executable,
+                "tool_version": "3.1.0a99", "next_python": sys.executable, "foreground": run_command,
                 "recovery_fragment": "", "include_stock_root": False,
             }
             with patch.dict(sys.modules, {
                     "google": google, "google.colab": colab
-            }), patch("subprocess.run", side_effect=run_command):
+            }):
                 exec(isolated, {
                     **options, "workflow": "Extract image only"
                 })
@@ -165,6 +170,29 @@ class ColabNotebookTests(unittest.TestCase):
                     downloads[-1], str(workspace / "twrp-device-tree.zip")
                 )
 
+
+    @unittest.skipUnless(sys.platform.startswith("linux"), "Colab uses Linux PTYs")
+    def test_foreground_streams_and_propagates_failure(self):
+        import contextlib
+        import io
+        import subprocess
+        for filename in ("generic_image_to_tree.ipynb", "cloud_firmware_slice.ipynb"):
+            notebook = json.loads((Path("colab") / filename).read_text(encoding="utf-8"))
+            setup = next("".join(c["source"]) for c in notebook["cells"] if c["cell_type"] == "code")
+            tree = ast.parse(setup)
+            selected = [node for node in tree.body
+                        if isinstance(node, (ast.Import, ast.ImportFrom, ast.FunctionDef))]
+            ns = {}
+            exec(compile(ast.Module(body=selected, type_ignores=[]), filename, "exec"), ns)
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                ns["foreground"]([sys.executable, "-c",
+                                  "import sys; print('hello'); print('error stream', file=sys.stderr)"])
+                with self.assertRaises(subprocess.CalledProcessError) as failure:
+                    ns["foreground"]([sys.executable, "-c", "raise SystemExit(7)"])
+            self.assertEqual(failure.exception.returncode, 7)
+            self.assertIn("hello", output.getvalue())
+            self.assertIn("error stream", output.getvalue())
 
     def test_generic_notebook_is_vendor_neutral_and_fresh_process(self):
         notebook = json.loads(

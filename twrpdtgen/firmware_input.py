@@ -141,6 +141,7 @@ def _write_image(stream, filename: str, destination: Path, entries: dict, total:
         output_name = target_name
         if target_name in entries:
             raise FirmwareInputError('Duplicate partition image ' + target_name + '; do not mix firmware builds')
+    print(f'[firmware] Staging {filename}...', flush=True)
     tmp = destination / ('.' + output_name + '.partial')
     target = destination / output_name
     if target.exists():
@@ -448,12 +449,15 @@ def _filesystem_kind(path: Path) -> str:
 
 
 def _run_external(args, label):
+    print(f'[firmware] {label}...', flush=True)
     try:
         result = subprocess.run([str(x) for x in args], stdout=subprocess.PIPE,
                                 stderr=subprocess.STDOUT, text=True, errors='replace',
                                 timeout=3600, check=False)
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise FirmwareInputError(label + ': ' + str(exc)) from exc
+    if os.environ.get('TDTNEXT_FOREGROUND') == '1' and result.stdout:
+        print(result.stdout, end='' if result.stdout.endswith('\n') else '\n', flush=True)
     if result.returncode != 0:
         raise FirmwareInputError(label + ': ' + result.stdout[-2500:])
     return result.stdout

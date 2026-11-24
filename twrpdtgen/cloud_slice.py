@@ -158,6 +158,7 @@ def ensure_samloader(
     if found:
         return Path(found)
 
+    print('[cloud-slice] Checking samloader-rs release...', flush=True)
     release = _request_json(SAMLOADER_RELEASE_API)
     asset = select_samloader_asset(release)
     tag = str(release.get("tag_name") or "latest")
@@ -174,6 +175,7 @@ def ensure_samloader(
 
     install_dir.mkdir(parents=True, exist_ok=True)
     archive = install_dir / str(asset["name"])
+    print(f'[cloud-slice] Downloading samloader-rs {tag}...', flush=True)
     _download_file(str(download_url), archive)
 
     expected = str(asset.get("digest") or "")
@@ -251,6 +253,7 @@ def download_firmware(
     if version:
         command.extend(["-v", version.strip()])
 
+    print(f'[cloud-slice] Downloading/decrypting {model} {region} with samloader-rs...', flush=True)
     try:
         subprocess.run(command, check=True)
     except subprocess.CalledProcessError as exc:
@@ -536,6 +539,7 @@ def slice_firmware(
                 ),
             )
         for package_info in packages:
+            print(f'[cloud-slice] Scanning {package_info.filename}...', flush=True)
             with bundle.open(package_info) as package_stream:
                 try:
                     tar = tarfile.open(fileobj=package_stream, mode="r|*")
@@ -572,11 +576,13 @@ def slice_firmware(
                                 f"Output already exists: {destination}"
                             )
 
+                        print(f'[cloud-slice] Extracting/decompressing {tar_member.name}...', flush=True)
                         with source:
                             compression = _copy_payload(
                                 source, tar_member.name, destination
                             )
                         size = destination.stat().st_size
+                        print(f'[cloud-slice] Verifying SHA-256 of {destination.name} ({size} bytes)...', flush=True)
                         digest = _sha256_file(destination)
                         return SliceResult(
                             firmware=firmware,
