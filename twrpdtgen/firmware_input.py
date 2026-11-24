@@ -450,17 +450,41 @@ def _filesystem_kind(path: Path) -> str:
 
 def _run_external(args, label):
     print(f'[firmware] {label}...', flush=True)
+    command = [str(x) for x in args]
     try:
-        result = subprocess.run([str(x) for x in args], stdout=subprocess.PIPE,
-                                stderr=subprocess.STDOUT, text=True, errors='replace',
-                                timeout=3600, check=False)
+        if os.environ.get('TDTNEXT_FOREGROUND') == '1':
+            # Tee extractor diagnostics as they arrive while retaining the
+            # report used for debugfs error detection and timeout handling.
+            import threading
+            output = []
+            with subprocess.Popen(command, stdout=subprocess.PIPE,
+                                  stderr=subprocess.STDOUT, text=True,
+                                  errors='replace', bufsize=1) as process:
+                def relay():
+                    for line in process.stdout:
+                        output.append(line)
+                        print(line, end='', flush=True)
+                reader = threading.Thread(target=relay)
+                reader.start()
+                try:
+                    returncode = process.wait(timeout=3600)
+                except BaseException:
+                    process.kill()
+                    process.wait()
+                    raise
+                finally:
+                    reader.join()
+                report = ''.join(output)
+        else:
+            result = subprocess.run(command, stdout=subprocess.PIPE,
+                                    stderr=subprocess.STDOUT, text=True,
+                                    errors='replace', timeout=3600, check=False)
+            returncode, report = result.returncode, result.stdout
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise FirmwareInputError(label + ': ' + str(exc)) from exc
-    if os.environ.get('TDTNEXT_FOREGROUND') == '1' and result.stdout:
-        print(result.stdout, end='' if result.stdout.endswith('\n') else '\n', flush=True)
-    if result.returncode != 0:
-        raise FirmwareInputError(label + ': ' + result.stdout[-2500:])
-    return result.stdout
+    if returncode != 0:
+        raise FirmwareInputError(label + ': ' + report[-2500:])
+    return report
 
 
 def _unpack_super(source: Path, scratch: Path, prepared: PreparedFirmware,

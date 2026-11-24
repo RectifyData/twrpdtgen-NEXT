@@ -194,6 +194,26 @@ class ColabNotebookTests(unittest.TestCase):
             self.assertIn("hello", output.getvalue())
             self.assertIn("error stream", output.getvalue())
 
+    def test_firmware_external_relay_preserves_diagnostics(self):
+        import contextlib
+        import io
+        import os
+        import subprocess
+        from twrpdtgen.firmware_input import _run_external, FirmwareInputError
+
+        output = io.StringIO()
+        with patch.dict(os.environ, {"TDTNEXT_FOREGROUND": "1"}), contextlib.redirect_stdout(output):
+            report = _run_external(
+                [sys.executable, "-u", "-c", "import sys; print('extracting'); print('diagnostic', file=sys.stderr)"],
+                "test extractor")
+            with self.assertRaisesRegex(FirmwareInputError, "bad image"):
+                _run_external([sys.executable, "-u", "-c",
+                               "print('bad image'); raise SystemExit(4)"], "test failure")
+        self.assertIn("extracting", report)
+        self.assertIn("diagnostic", report)
+        self.assertIn("extracting", output.getvalue())
+        self.assertIn("bad image", output.getvalue())
+
     def test_generic_notebook_is_vendor_neutral_and_fresh_process(self):
         notebook = json.loads(
             Path("colab/generic_image_to_tree.ipynb").read_text(
