@@ -55,6 +55,11 @@ class ColabBootstrapTests(unittest.TestCase):
                 launcher._ensure_environment(python)
                 builder.assert_not_called()
 
+    def test_setup_only_does_not_generate(self):
+        with patch.object(launcher, "_ready", return_value=True), patch.object(launcher.subprocess, "call") as call:
+            self.assertEqual(launcher.main(["--setup-only"]), 0)
+            call.assert_not_called()
+
     def test_install_command_is_editable_and_touches_only_private_env(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

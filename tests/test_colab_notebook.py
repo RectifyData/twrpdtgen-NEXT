@@ -23,11 +23,11 @@ class ColabNotebookTests(unittest.TestCase):
             if cell.get("cell_type") == "code"
         )
         self.assertIn(
-            "[sys.executable, '-m', 'twrpdtgen.cloud_slice', *args]",
+            "[next_python, '-m', 'twrpdtgen.cloud_slice', *args]",
             source,
         )
         self.assertIn(
-            "[sys.executable, '-m', 'twrpdtgen.cloud_tree', *args]",
+            "[next_python, '-m', 'twrpdtgen.cloud_tree', *args]",
             source,
         )
         self.assertNotIn(
@@ -108,7 +108,12 @@ class ColabNotebookTests(unittest.TestCase):
             else:
                 self.fail("Unexpected command: {!r}".format(cmd))
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(b"synthetic-test-output")
+            if target.suffix == '.zip':
+                import zipfile
+                with zipfile.ZipFile(target, 'w') as bundle:
+                    bundle.writestr('generation-report.json', '{}')
+            else:
+                target.write_bytes(b'synthetic-test-output')
 
         google = types.ModuleType("google")
         colab = types.ModuleType("google.colab")
@@ -130,7 +135,8 @@ class ColabNotebookTests(unittest.TestCase):
                 "partition": "recovery", "package": "AP", "threads": 8,
                 "firmware_version": "", "skeleton": "auto",
                 "recovery_layout": "auto", "recovery_root_mode": "minimal",
-                "tool_version": "3.1.0a99",
+                "tool_version": "3.1.0a99", "next_python": sys.executable,
+                "recovery_fragment": "", "include_stock_root": False,
             }
             with patch.dict(sys.modules, {
                     "google": google, "google.colab": colab
@@ -145,9 +151,12 @@ class ColabNotebookTests(unittest.TestCase):
 
                 exec(isolated, {
                     **options, "workflow": "Generate TWRP device tree",
-                    "firmware_version": "A207FXXUTEST"
+                    "firmware_version": "A207FXXUTEST",
+                    "recovery_fragment": "recovery", "include_stock_root": True
                 })
                 self.assertIn("twrpdtgen.cloud_tree", commands[-1])
+                self.assertIn("--include-stock-root", commands[-1])
+                self.assertEqual(commands[-1][commands[-1].index("--recovery-fragment") + 1], "recovery")
                 self.assertEqual(
                     commands[-1][commands[-1].index("-v") + 1],
                     "A207FXXUTEST"
@@ -169,10 +178,15 @@ class ColabNotebookTests(unittest.TestCase):
             if cell.get("cell_type") == "code"
         )
         self.assertIn(
-            "sys.executable, '-m', 'twrpdtgen.auto_tree'",
+            "next_python, '-m', 'twrpdtgen.auto_tree'",
             source,
         )
         self.assertIn("files.upload()", source)
+        self.assertIn("Full firmware", source)
+        self.assertIn("--input", source)
+        self.assertIn("init_boot", source)
+        self.assertIn(".tdtnext-venv/bin/python", source)
+        self.assertIn("--setup-only", source)
         self.assertIn("zipfile.is_zipfile", source)
         self.assertNotIn("primary_image =", source)
         self.assertNotIn("boot_image =", source)

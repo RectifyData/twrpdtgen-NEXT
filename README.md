@@ -248,7 +248,9 @@ The core generator is OEM-neutral. For phones where you already have the
 required recovery/boot images, use
 **[colab/generic_image_to_tree.ipynb](colab/generic_image_to_tree.ipynb)**.
 
-That notebook is now **upload-and-run**: select the images and NEXT automatically recognizes standard `recovery.img`, `boot.img`, `vendor_boot.img`, and `init_boot.img` names (including `_a` / `_b` slot variants), chooses the primary recovery source, adds companions, generates the tree, and downloads the symlink-safe ZIP. No image filenames need to be typed.
+Both notebooks use the standalone launcher’s isolated environment via `sh tdtnext --setup-only`, not a global Python installation. The generic notebook also supports a **Full firmware** mode for the modern ZIP/TAR/TAR.MD5 importer, while retaining the original image-only workflow.
+
+The image-only mode is **upload-and-run**: select the images and NEXT automatically recognizes standard `recovery.img`, `boot.img`, `vendor_boot.img`, and `init_boot.img` names (including `_a` / `_b` slot variants), chooses the primary recovery source, adds companions, generates the tree, and downloads the symlink-safe ZIP. No image filenames need to be typed.
 
 Samsung FUS support is an optional acquisition path, not a requirement of the
 generator. See **[docs/generic-colab.md](docs/generic-colab.md)**.

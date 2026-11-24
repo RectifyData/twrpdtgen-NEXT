@@ -95,6 +95,9 @@ def main(argv=None):
             print("[tdtnext] Check python3 -m pip --version (host pip 22.3+ is "
                   "required if ensurepip is unavailable).", file=sys.stderr)
             return 2
+    if argv == ["--setup-only"]:
+        print("[tdtnext] Isolated environment ready: " + str(py), flush=True)
+        return 0
     return subprocess.call([str(py), "-m", "twrpdtgen", "--cli", *argv])
 
 if __name__ == "__main__":

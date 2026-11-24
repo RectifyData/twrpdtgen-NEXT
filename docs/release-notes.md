@@ -1,18 +1,8 @@
-# twrpdtgen-NEXT 3.1.0a34 — Pixel/Android 17 vendor_boot recovery fix
+# twrpdtgen-NEXT 3.1.0a35 — Colab refresh
 
-**Experimental source preview.** No bootable recovery image is included.
+Experimental source preview. No bootable recovery image is included.
 
-The generator now distinguishes universal vendor_boot v4 PLATFORM/NONE/DLKM
-fragments from OEM-specific board variants instead of aborting immediately
-when no typed RECOVERY fragment exists. Conflicting common files are not
-silently combined. Excluded board-specific fragments are recorded in the
-generated metadata, and the import can fall back to generic init_boot plus an
-extracted vendor/odm stock fstab with explicit warnings.
-
-Reported with Google Pixel 11 Pro Fold (yogi), Android 17 QPR2 factory package
-\`yogi_beta-cp41.260831.019-factory-d1d1450f.zip\`.
-
-Regression coverage includes variant exclusion, conflict detection, fallback,
-original typed-fragment selection, and stock partition fstab lookup. The real
-firmware ZIP was not supplied in this session for a full end-to-end retest.
-Device-specific boot, encryption, SELinux, and signing remain unverified.
+- Both notebooks now use the standalone launcher’s isolated environment and fresh subprocesses, with automatic missing host-tool setup.
+- Generic notebook retains upload-and-run image discovery and adds full firmware ZIP/TAR/TAR.MD5 import, including the firmware audit.
+- Samsung FUS notebook retains extraction and tree-generation modes, with current layout, root, fragment, package and thread options.
+- Generated archives remain candidate source trees. Real firmware, hardware boot and a live Colab session need separate validation.
